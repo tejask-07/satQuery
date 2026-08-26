@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Data
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+data/samples/*
+!data/samples/.gitkeep
+
+data/metadata/*
+!data/metadata/.gitkeep
+
+# Model weights
+models/checkpoints/*
+!models/checkpoints/.gitkeep
+
+models/configs/*
+!models/configs/.gitkeep
+
+# Generated outputs
+outputs/
+results/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
