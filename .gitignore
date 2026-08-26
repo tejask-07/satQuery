@@ -41,7 +41,7 @@ models/configs/*
 
 # Generated outputs
 outputs/
-results/
+
 
 # Frontend
 frontend/node_modules/
