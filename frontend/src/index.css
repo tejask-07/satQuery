@@ -1,0 +1,329 @@
+:root {
+  font-family:
+    Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  color: #e8edf5;
+  background: #080b10;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.app {
+  min-height: 100vh;
+  background: #080b10;
+}
+
+.header {
+  height: 76px;
+  padding: 0 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-bottom: 1px solid #202631;
+  background: #0c1016;
+}
+
+.header h1 {
+  margin: 0;
+
+  font-size: 22px;
+  letter-spacing: -0.5px;
+}
+
+.header p {
+  margin: 4px 0 0;
+
+  color: #7f8999;
+  font-size: 13px;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: #9ca6b5;
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #69c991;
+}
+
+main {
+  padding: 24px 32px 32px;
+}
+
+.query-section {
+  padding: 20px;
+
+  border: 1px solid #202631;
+  border-radius: 10px;
+
+  background: #0d1219;
+}
+
+.section-label {
+  margin-bottom: 12px;
+
+  color: #7f8999;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+.query-section textarea {
+  width: 100%;
+  resize: vertical;
+
+  padding: 14px;
+
+  border: 1px solid #29313d;
+  border-radius: 7px;
+
+  outline: none;
+
+  color: #e8edf5;
+  background: #090d13;
+
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.query-section textarea:focus {
+  border-color: #566274;
+}
+
+.query-footer {
+  margin-top: 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  color: #687384;
+  font-size: 12px;
+}
+
+.query-footer button {
+  padding: 9px 18px;
+
+  border: 0;
+  border-radius: 6px;
+
+  color: #080b10;
+  background: #e8edf5;
+
+  font-weight: 700;
+}
+
+.query-footer button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.workspace {
+  margin-top: 20px;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.8fr);
+  gap: 20px;
+}
+
+.map-panel,
+.analysis-panel {
+  min-height: 520px;
+
+  border: 1px solid #202631;
+  border-radius: 10px;
+
+  background: #0d1219;
+}
+
+.map-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.map-placeholder {
+  position: relative;
+
+  height: 100%;
+
+  min-height: 520px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+
+  background: #0a0e14;
+}
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+
+  opacity: 0.25;
+
+  background-image:
+    linear-gradient(#29313d 1px, transparent 1px),
+    linear-gradient(90deg, #29313d 1px, transparent 1px);
+
+  background-size: 48px 48px;
+}
+
+.map-message {
+  position: relative;
+
+  max-width: 340px;
+
+  text-align: center;
+}
+
+.map-message span {
+  font-size: 28px;
+  color: #8d99aa;
+}
+
+.map-message h2 {
+  margin: 12px 0 8px;
+
+  font-size: 18px;
+}
+
+.map-message p {
+  margin: 0;
+
+  color: #697486;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.map-toolbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+
+  display: flex;
+  gap: 6px;
+}
+
+.map-toolbar button {
+  padding: 7px 10px;
+
+  border: 1px solid #29313d;
+  border-radius: 5px;
+
+  color: #aeb7c5;
+  background: #0d1219;
+
+  font-size: 11px;
+}
+
+.analysis-panel {
+  padding: 20px;
+}
+
+.analysis-panel h2 {
+  margin: 18px 0;
+
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.analysis-status {
+  display: inline-flex;
+
+  padding: 5px 8px;
+
+  border-radius: 4px;
+
+  color: #aeb7c5;
+  background: #171d26;
+
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.empty-message {
+  margin-top: 120px;
+  text-align: center;
+}
+
+.empty-message h2 {
+  font-size: 18px;
+}
+
+.empty-message p {
+  color: #697486;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.plan {
+  border-top: 1px solid #202631;
+}
+
+.plan-row {
+  padding: 13px 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  border-bottom: 1px solid #202631;
+}
+
+.plan-row span {
+  color: #697486;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.plan-row strong {
+  color: #d5dbe5;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .map-panel,
+  .analysis-panel {
+    min-height: 400px;
+  }
+
+  .map-placeholder {
+    min-height: 400px;
+  }
+}
