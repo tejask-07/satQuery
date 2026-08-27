@@ -11,3 +11,6 @@ starlette==1.6.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 uvicorn==0.52.4
+numpy==2.5.2
+opencv-python==5.0.0.93
+pytest==9.1.1
