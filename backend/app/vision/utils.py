@@ -152,3 +152,35 @@ def draw_regions(
         )
 
     return output
+
+def threshold_difference_adaptive(
+    difference: np.ndarray,
+) -> np.ndarray:
+    """
+    Automatically determine a threshold from the difference image
+    using Otsu's method.
+
+    Input:
+        difference: 2D float image in the [0, 1] range.
+
+    Returns:
+        Binary uint8 mask where changed pixels are 255.
+    """
+    if difference.ndim != 2:
+        raise ValueError("difference must be a 2D array")
+
+    # Convert [0, 1] difference to 8-bit [0, 255].
+    difference_uint8 = np.clip(
+        difference * 255.0,
+        0,
+        255,
+    ).astype(np.uint8)
+
+    _, mask = cv2.threshold(
+        difference_uint8,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )
+
+    return mask

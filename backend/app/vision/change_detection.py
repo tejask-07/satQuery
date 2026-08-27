@@ -8,6 +8,7 @@ from app.vision.utils import (
     clean_mask,
     extract_regions,
     threshold_difference,
+    threshold_difference_adaptive,
 )
 
 
@@ -16,33 +17,49 @@ def detect_change(
     after: np.ndarray,
     threshold: float = 0.10,
     min_region_area: int = 20,
+    method: str = "fixed",
 ) -> dict:
     """
     Detect visual changes between two aligned images.
 
-    This is the initial classical CV baseline for SatQuery AI.
+    Args:
+        before: Earlier image as a NumPy array.
+        after: Later image as a NumPy array.
+        threshold: Threshold used by the fixed method.
+        min_region_area: Minimum connected-component area.
+        method: "fixed" or "adaptive".
     """
+    if method not in {"fixed", "adaptive"}:
+        raise ValueError(
+            "method must be either 'fixed' or 'adaptive'"
+        )
+
     before, after = prepare_images(before, after)
 
-    # Absolute difference between the two images.
+    # Compute absolute pixel-wise difference.
     difference = cv2.absdiff(before, after)
 
-    # Convert multi-channel differences into a single intensity map.
+    # Convert multi-channel difference to a single intensity map.
     if difference.ndim == 3:
         difference_gray = np.mean(difference, axis=2)
     else:
         difference_gray = difference
 
-    # Turn the difference into a candidate change mask.
-    mask = threshold_difference(
-        difference_gray,
-        threshold=threshold,
-    )
+    # Convert difference map into a binary change mask.
+    if method == "fixed":
+        mask = threshold_difference(
+            difference_gray,
+            threshold=threshold,
+        )
+    else:
+        mask = threshold_difference_adaptive(
+            difference_gray,
+        )
 
-    # Remove small isolated noise.
+    # Remove isolated noise and close small gaps.
     mask = clean_mask(mask)
 
-    # Extract meaningful connected regions.
+    # Extract connected changed regions.
     regions = extract_regions(
         mask,
         min_area=min_region_area,
@@ -59,6 +76,7 @@ def detect_change(
 
     return {
         "status": "success",
+        "method": method,
         "changed_pixels": changed_pixels,
         "change_ratio": float(change_ratio),
         "regions_detected": len(regions),
