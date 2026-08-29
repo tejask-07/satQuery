@@ -49,3 +49,6 @@ frontend/dist/
 
 # Logs
 *.log
+
+#tif
+*.tif

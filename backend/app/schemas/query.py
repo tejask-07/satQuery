@@ -31,8 +31,11 @@ class QueryPlan(BaseModel):
     metric: Optional[str] = None
 
     # Desired direction of change
-    direction: Optional[
-        Literal["increase", "decrease", "both", "unknown"]
+    direction: Literal[
+        "increase",
+        "decrease",
+        "both",
+        "unknown",
     ] = "unknown"
 
     # Operations that need to be performed
