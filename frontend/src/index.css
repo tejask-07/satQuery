@@ -112,3 +112,29 @@ img {
   display: block;
   max-width: 100%;
 }
+
+.query-error {
+  position: fixed;
+
+  left: 50%;
+  bottom: 24px;
+
+  transform: translateX(-50%);
+
+  z-index: 100;
+
+  padding: 12px 18px;
+
+  border: 1px solid #11110f;
+
+  background: #f3f0e8;
+
+  color: #11110f;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+}

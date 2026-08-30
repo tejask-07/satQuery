@@ -1,0 +1,1106 @@
+/* =========================================================
+   SATQUERY — ANALYSIS WORKSPACE
+   ========================================================= */
+
+.analysis-workspace {
+  --paper: #f1ede4;
+  --panel: #f5f1e9;
+  --ink: #11110f;
+  --muted: #5f5b54;
+
+  --line: rgba(17, 17, 15, 0.14);
+  --soft-line: rgba(17, 17, 15, 0.09);
+
+  --sidebar-width: 240px;
+  --findings-width: 230px;
+
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  background: var(--paper);
+  color: var(--ink);
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.analysis-header {
+  flex: 0 0 68px;
+
+  width: 100%;
+  height: 68px;
+  min-height: 68px;
+
+  display: grid;
+
+  grid-template-columns:
+    var(--sidebar-width)
+    minmax(0, 1fr)
+    var(--findings-width);
+
+  align-items: center;
+
+  border-bottom: 1px solid var(--line);
+
+  background: var(--paper);
+
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   BRAND
+   ========================================================= */
+
+.analysis-brand {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  justify-content: center;
+
+  padding: 0 26px;
+
+  box-sizing: border-box;
+
+  border-right: 1px solid var(--line);
+}
+
+.analysis-brand-name {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 18px;
+  font-weight: 600;
+
+  line-height: 1;
+
+  letter-spacing: -0.55px;
+}
+
+.analysis-brand-subtitle {
+  margin-top: 5px;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 7.5px;
+  font-weight: 500;
+
+  line-height: 1;
+
+  letter-spacing: 0.7px;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   HEADER CONTEXT
+   ========================================================= */
+
+.analysis-context {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+
+  gap: 48px;
+
+  padding: 0 34px;
+
+  box-sizing: border-box;
+}
+
+.analysis-context-item {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  white-space: nowrap;
+}
+
+.analysis-context-label {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.25px;
+}
+
+.analysis-context-value {
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 500;
+
+  line-height: 1;
+
+  letter-spacing: -0.1px;
+}
+
+.analysis-context-arrow {
+  font-size: 13px;
+}
+
+.date-arrow {
+  padding: 0 7px;
+}
+
+
+/* =========================================================
+   ANALYSIS STATUS
+   HIDDEN
+   ========================================================= */
+
+.analysis-status {
+  display: none;
+}
+
+.analysis-status-dot {
+  display: none;
+}
+
+
+/* =========================================================
+   HEADER ACTIONS
+   ========================================================= */
+/* =========================================================
+   HEADER ACTIONS — FINAL ALIGNMENT
+   ========================================================= */
+
+.analysis-header-actions {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 18px;
+
+  padding: 0 32px;
+
+  box-sizing: border-box;
+
+  border-left: 1px solid var(--line);
+}
+
+.analysis-export {
+  width: 108px;
+  height: 38px;
+
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(17, 17, 15, 0.25);
+
+  background: transparent;
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  line-height: 1;
+
+  letter-spacing: 0.3px;
+
+  cursor: pointer;
+}
+
+.analysis-export:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.analysis-menu {
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: var(--ink);
+
+  font-size: 21px;
+
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+/* =========================================================
+   MAIN LAYOUT
+   ========================================================= */
+
+.analysis-layout {
+  flex: 1 1 0;
+
+  min-height: 0;
+
+  display: grid;
+
+  grid-template-columns:
+    var(--sidebar-width)
+    minmax(0, 1fr)
+    var(--findings-width);
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   LEFT SIDEBAR
+   ========================================================= */
+
+.analysis-sidebar {
+  min-width: 0;
+  min-height: 0;
+
+  overflow-y: auto;
+
+  padding:
+    28px
+    26px
+    40px;
+
+  box-sizing: border-box;
+
+  border-right: 1px solid var(--line);
+
+  background: var(--paper);
+}
+
+
+/* =========================================================
+   SIDEBAR SECTIONS
+   ========================================================= */
+
+.analysis-section {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding-bottom: 28px;
+
+  margin-bottom: 28px;
+
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.analysis-section:last-child {
+  border-bottom: 0;
+
+  padding-bottom: 0;
+
+  margin-bottom: 0;
+}
+
+
+/* =========================================================
+   REMOVE INTERPRETED PLAN
+   ========================================================= */
+
+.analysis-sidebar .analysis-steps {
+  display: none;
+}
+
+.analysis-sidebar .analysis-steps + * {
+  display: none;
+}
+
+.analysis-steps {
+  display: none;
+}
+
+.analysis-step {
+  display: none;
+}
+
+.step-indicator {
+  display: none;
+}
+
+
+/* =========================================================
+   SECTION LABELS
+   ========================================================= */
+
+.analysis-section-label,
+.findings-label {
+  margin-bottom: 20px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.55px;
+}
+
+
+/* =========================================================
+   QUERY
+   ========================================================= */
+
+.analysis-query-section {
+  padding-bottom: 30px;
+
+  margin-bottom: 30px;
+
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.analysis-query {
+  max-width: 185px;
+
+  margin: 0;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 14px;
+  font-weight: 500;
+
+  line-height: 1.55;
+
+  letter-spacing: -0.1px;
+}
+
+
+/* =========================================================
+   DATA SUMMARY
+   ========================================================= */
+
+.analysis-data {
+  padding-bottom: 0;
+
+  margin-bottom: 0;
+
+  border-bottom: 0;
+}
+
+.analysis-data .analysis-section-label {
+  margin-bottom: 27px;
+}
+
+.analysis-data-row {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+
+  margin-bottom: 23px;
+}
+
+.analysis-data-row:last-child {
+  margin-bottom: 0;
+}
+
+.analysis-data-label {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.5px;
+}
+
+.analysis-data-value {
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 500;
+
+  line-height: 1.45;
+
+  letter-spacing: -0.1px;
+}
+
+
+/* =========================================================
+   MAP PANEL
+   ========================================================= */
+
+.analysis-map-panel {
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+
+  background: #1c2925;
+}
+
+.analysis-map {
+  position: relative;
+
+  width: 100%;
+  height: 100%;
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   REAL SATELLITE MAP
+   ========================================================= */
+
+.satellite-map {
+  width: 100%;
+  height: 100%;
+
+  z-index: 1;
+}
+
+
+/* =========================================================
+   LEAFLET
+   ========================================================= */
+
+.leaflet-container {
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+}
+
+.satellite-map .leaflet-control-attribution {
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 6px;
+
+  background: rgba(17, 17, 15, 0.65);
+
+  color: rgba(245, 241, 233, 0.7);
+}
+
+.satellite-map .leaflet-control-attribution a {
+  color: rgba(245, 241, 233, 0.8);
+}
+
+
+/* =========================================================
+   MAP BADGE
+   ========================================================= */
+
+.map-analysis-badge {
+  position: absolute;
+
+  z-index: 500;
+
+  top: 24px;
+  left: 24px;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+
+  padding: 12px 15px;
+
+  background: rgba(17, 17, 15, 0.9);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 8px;
+  font-weight: 600;
+
+  line-height: 1.2;
+}
+
+
+/* =========================================================
+   MAP CONTROLS
+   ========================================================= */
+
+.map-controls {
+  position: absolute;
+
+  z-index: 500;
+
+  left: 24px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  display: flex;
+  flex-direction: column;
+
+  box-shadow:
+    0 1px 5px rgba(0, 0, 0, 0.3);
+}
+
+.map-controls button {
+  width: 42px;
+  height: 42px;
+
+  border: 0;
+  border-bottom: 1px solid var(--line);
+
+  background: var(--panel);
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 16px;
+
+  cursor: pointer;
+}
+
+.map-controls button:last-child {
+  border-bottom: 0;
+}
+
+.map-controls button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+
+/* =========================================================
+   MAP LEGEND
+   ========================================================= */
+
+.map-legend {
+  position: absolute;
+
+  z-index: 500;
+
+  right: 22px;
+  bottom: 68px;
+
+  width: 150px;
+
+  padding: 15px;
+
+  background: rgba(17, 17, 15, 0.9);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+}
+
+.map-legend-title {
+  margin-bottom: 13px;
+
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  margin-bottom: 9px;
+
+  font-size: 7px;
+}
+
+.legend-item:last-child {
+  margin-bottom: 0;
+}
+
+.legend-swatch {
+  width: 13px;
+  height: 13px;
+
+  display: block;
+}
+
+.legend-swatch.high {
+  background: #e33420;
+}
+
+.legend-swatch.moderate {
+  background: #f27624;
+}
+
+.legend-swatch.slight {
+  background: #f4c43b;
+}
+
+.legend-swatch.unchanged {
+  background: #888984;
+}
+
+.legend-swatch.increase {
+  background: #5b9b42;
+}
+
+
+/* =========================================================
+   MAP SCALE
+   ========================================================= */
+
+.map-scale {
+  position: absolute;
+
+  z-index: 500;
+
+  left: 24px;
+  bottom: 22px;
+
+  display: flex;
+  align-items: flex-end;
+
+  gap: 8px;
+
+  padding: 6px 8px;
+
+  background: rgba(17, 17, 15, 0.7);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 8px;
+}
+
+.map-scale-line {
+  width: 54px;
+  height: 4px;
+
+  border-left: 1px solid var(--paper);
+  border-right: 1px solid var(--paper);
+  border-bottom: 1px solid var(--paper);
+}
+
+
+/* =========================================================
+   MAP COORDINATES
+   ========================================================= */
+
+.map-coordinates {
+  position: absolute;
+
+  z-index: 500;
+
+  right: 22px;
+  bottom: 22px;
+
+  padding: 7px 10px;
+
+  background: rgba(17, 17, 15, 0.78);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 7px;
+}
+
+
+/* =========================================================
+   RIGHT FINDINGS
+   ========================================================= */
+
+.findings-panel {
+  min-width: 0;
+  min-height: 0;
+
+  overflow-y: auto;
+
+  display: flex;
+  flex-direction: column;
+
+  padding:
+    28px
+    24px
+    28px;
+
+  box-sizing: border-box;
+
+  border-left: 1px solid var(--line);
+
+  background: var(--paper);
+}
+
+.findings-section {
+  padding-bottom: 26px;
+
+  margin-bottom: 25px;
+
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.findings-section:last-of-type {
+  margin-bottom: 0;
+}
+
+
+/* =========================================================
+   FINDINGS LABEL
+   ========================================================= */
+
+.findings-label {
+  margin-bottom: 20px;
+
+  font-size: 11px;
+
+  letter-spacing: 0.55px;
+}
+
+
+/* =========================================================
+   FINDING STAT
+   ========================================================= */
+
+.finding-stat {
+  padding:
+    21px
+    0;
+
+  border-top: 1px solid var(--soft-line);
+}
+
+.finding-stat:first-of-type {
+  border-top: 0;
+}
+
+.finding-stat-value {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 35px;
+  font-weight: 500;
+
+  line-height: 1;
+
+  letter-spacing: -1.7px;
+}
+
+.finding-stat-label {
+  margin-top: 9px;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 8.5px;
+  font-weight: 500;
+
+  line-height: 1.4;
+
+  letter-spacing: 0.3px;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   DISTRIBUTION
+   ========================================================= */
+
+.distribution-chart {
+  height: 82px;
+
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  gap: 3px;
+
+  padding:
+    0 4px
+    8px;
+
+  border-bottom: 1px solid var(--line);
+
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 19px,
+      rgba(17, 17, 15, 0.07) 20px
+    );
+}
+
+.distribution-chart span {
+  width: 5px;
+
+  display: block;
+
+  min-height: 2px;
+
+  background: #d34b29;
+
+  transition:
+    height 180ms ease;
+}
+
+.distribution-axis {
+  display: flex;
+
+  justify-content: space-between;
+
+  margin-top: 7px;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 7px;
+
+  color: var(--muted);
+}
+
+.distribution-label {
+  margin-top: 9px;
+
+  text-align: center;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 8px;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   PRIMARY ANALYSIS
+   ========================================================= */
+
+.secondary-label {
+  margin-top: 27px;
+}
+
+.finding-analysis {
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  line-height: 1.55;
+}
+
+.finding-analysis.large {
+  font-size: 12px;
+}
+
+
+/* =========================================================
+   VIEW DETAILS
+   ========================================================= */
+
+.view-details-button {
+  width: 100%;
+
+  margin-top: auto;
+
+  padding: 16px 17px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border: 1px solid var(--ink);
+
+  background: var(--ink);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.55px;
+
+  cursor: pointer;
+}
+
+.view-details-button:hover {
+  background: transparent;
+
+  color: var(--ink);
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1100px) {
+
+  .analysis-workspace {
+    --sidebar-width: 240px;
+    --findings-width: 230px;
+  }
+
+  .analysis-header {
+    grid-template-columns:
+      var(--sidebar-width)
+      minmax(0, 1fr)
+      var(--findings-width);
+  }
+
+  .analysis-context {
+    gap: 25px;
+
+    padding:
+      0 20px;
+  }
+
+  .analysis-layout {
+    grid-template-columns:
+      var(--sidebar-width)
+      minmax(0, 1fr)
+      var(--findings-width);
+  }
+
+  .analysis-sidebar {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .findings-panel {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .map-legend {
+    width: 130px;
+  }
+}
+
+
+@media (max-width: 850px) {
+
+  .analysis-workspace {
+    --sidebar-width: 180px;
+    --findings-width: 180px;
+  }
+
+  .analysis-context-item:nth-child(1) {
+    display: none;
+  }
+
+  .analysis-layout {
+    grid-template-columns:
+      var(--sidebar-width)
+      minmax(0, 1fr)
+      var(--findings-width);
+  }
+
+  .analysis-header {
+    grid-template-columns:
+      var(--sidebar-width)
+      minmax(0, 1fr)
+      var(--findings-width);
+  }
+
+  .analysis-context {
+    gap: 20px;
+  }
+
+  .analysis-context-value {
+    font-size: 8px;
+  }
+
+  .finding-stat-value {
+    font-size: 25px;
+  }
+
+  .map-legend {
+    right: 12px;
+    bottom: 60px;
+
+    width: 110px;
+  }
+}
