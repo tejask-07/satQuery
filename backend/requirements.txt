@@ -15,4 +15,4 @@ numpy==2.5.2
 opencv-python==5.0.0.93
 pytest==9.1.1
 rasterio==1.5.1
-python -m pip freeze | findstr opencv
+# python -m pip freeze | findstr opencv
