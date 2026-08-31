@@ -38,7 +38,7 @@ type VisualizationType =
 
 
 function LayersVisualization({
-  result,
+  // result,
   onBack,
 }: LayersVisualizationProps) {
 
