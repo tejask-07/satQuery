@@ -18,7 +18,6 @@ function AnalysisWorkspace({
       ? `${Math.round(result.confidence * 100)}%`
       : "—";
 
-
   const formatDate = (date: string) => {
     if (!date) return "—";
 
@@ -31,9 +30,7 @@ function AnalysisWorkspace({
     return parsed.toISOString().split("T")[0];
   };
 
-
   const statistics = result.statistics ?? {};
-
 
   /*
    * TEMPORARY MOCK HISTOGRAM DATA
@@ -66,7 +63,6 @@ function AnalysisWorkspace({
     2,
   ];
 
-
   /*
    * TEMPORARY AOI
    *
@@ -83,7 +79,6 @@ function AnalysisWorkspace({
     [18.88, 72.66],
     [19.12, 72.61],
   ];
-
 
   /*
    * TEMPORARY CHANGE LOCATIONS
@@ -102,7 +97,6 @@ function AnalysisWorkspace({
     [19.23, 72.79],
     [19.04, 72.82],
   ];
-
 
   return (
     <main className="analysis-workspace">
@@ -201,96 +195,125 @@ function AnalysisWorkspace({
             LEFT
             =================================================== */}
 
-            <aside className="analysis-sidebar">
-
-              {/* ===================================================
-                  QUERY
-                  =================================================== */}
-
-              <section className="analysis-section analysis-query-section">
-
-                <div className="analysis-section-label">
-                  QUERY
-                </div>
-
-                <p className="analysis-query">
-                  {plan.task || "Analysis request"}
-                </p>
-
-              </section>
+        <aside className="analysis-sidebar">
 
 
-              {/* ===================================================
-                  DATA SUMMARY
-                  =================================================== */}
+          {/* ===================================================
+              QUERY
+              =================================================== */}
 
-              <section className="analysis-section analysis-data">
+          <section className="analysis-section analysis-query-section">
 
-                <div className="analysis-section-label">
-                  DATA SUMMARY
-                </div>
+            <div className="analysis-section-label">
+              QUERY
+            </div>
 
+            <p className="analysis-query">
+              {plan.task || "Analysis request"}
+            </p>
 
-                <div className="analysis-data-row">
-
-                  <span className="analysis-data-label">
-                    SATELLITE
-                  </span>
-
-                  <span className="analysis-data-value">
-                    {plan.modalities.length > 0
-                      ? plan.modalities.join(", ")
-                      : "—"}
-                  </span>
-
-                </div>
+          </section>
 
 
-                <div className="analysis-data-row">
+          {/* ===================================================
+              DATA SUMMARY
+              =================================================== */}
 
-                  <span className="analysis-data-label">
-                    RESOLUTION
-                  </span>
+          <section className="analysis-section analysis-data">
 
-                  <span className="analysis-data-value">
-                    10m
-                  </span>
+            <div className="analysis-section-label">
+              DATA SUMMARY
+            </div>
 
-                </div>
+            <div className="analysis-data-row">
 
+              <span className="analysis-data-label">
+                SATELLITE
+              </span>
 
-                <div className="analysis-data-row">
+              <span className="analysis-data-value">
+                {plan.modalities.length > 0
+                  ? plan.modalities.join(", ")
+                  : "—"}
+              </span>
 
-                  <span className="analysis-data-label">
-                    ACQUISITION DATES
-                  </span>
-
-                  <span className="analysis-data-value">
-                    {formatDate(plan.time_start)}
-                    {" → "}
-                    {formatDate(plan.time_end)}
-                  </span>
-
-                </div>
+            </div>
 
 
-                <div className="analysis-data-row">
+            <div className="analysis-data-row">
 
-                  <span className="analysis-data-label">
-                    CLOUD COVER
-                  </span>
+              <span className="analysis-data-label">
+                RESOLUTION
+              </span>
 
-                  <span className="analysis-data-value">
-                    2021: 6.3%
-                    <br />
-                    2025: 4.2%
-                  </span>
+              <span className="analysis-data-value">
+                10m
+              </span>
 
-                </div>
+            </div>
 
-              </section>
 
-            </aside>
+            <div className="analysis-data-row">
+
+              <span className="analysis-data-label">
+                ACQUISITION DATES
+              </span>
+
+              <span className="analysis-data-value">
+                {formatDate(plan.time_start)}
+                {" → "}
+                {formatDate(plan.time_end)}
+              </span>
+
+            </div>
+
+
+            <div className="analysis-data-row">
+
+              <span className="analysis-data-label">
+                CLOUD COVER
+              </span>
+
+              <span className="analysis-data-value">
+                2021: 6.3%
+                <br />
+                2025: 4.2%
+              </span>
+
+            </div>
+
+          </section>
+
+
+          {/* ===================================================
+              INDICATORS
+              =================================================== */}
+
+          <section className="analysis-section analysis-indicators">
+
+            <div className="analysis-section-label">
+              PRIMARY INDICATOR
+            </div>
+
+            <div className="finding-analysis large">
+              {plan.analysis.length > 0
+                ? plan.analysis[0]
+                : "NDVI Difference"}
+            </div>
+
+
+            <div className="analysis-section-label indicator-secondary-label">
+              SUPPORTING INDICATOR
+            </div>
+
+            <div className="finding-analysis large">
+              NDBI Increase
+            </div>
+
+          </section>
+
+
+        </aside>
 
 
         {/* ===================================================
@@ -465,6 +488,11 @@ function AnalysisWorkspace({
 
         <aside className="findings-panel">
 
+
+          {/* =================================================
+              FINDINGS
+              ================================================= */}
+
           <section className="findings-section">
 
             <div className="findings-label">
@@ -517,7 +545,11 @@ function AnalysisWorkspace({
           </section>
 
 
-          <section className="findings-section">
+          {/* =================================================
+              DISTRIBUTION
+              ================================================= */}
+
+          <section className="findings-section distribution-section">
 
             <div className="findings-label">
               CHANGE DISTRIBUTION
@@ -552,27 +584,9 @@ function AnalysisWorkspace({
           </section>
 
 
-          <section className="findings-section">
-
-            <div className="findings-label">
-              PRIMARY INDICATOR
-            </div>
-
-            <div className="finding-analysis large">
-              NDVI Difference
-            </div>
-
-
-            <div className="findings-label secondary-label">
-              SUPPORTING INDICATOR
-            </div>
-
-            <div className="finding-analysis large">
-              NDBI Increase
-            </div>
-
-          </section>
-
+          {/* =================================================
+              VIEW DETAILS
+              ================================================= */}
 
           <button
             type="button"
@@ -588,6 +602,7 @@ function AnalysisWorkspace({
             </span>
 
           </button>
+
 
         </aside>
 

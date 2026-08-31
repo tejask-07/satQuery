@@ -192,9 +192,6 @@
 /* =========================================================
    HEADER ACTIONS
    ========================================================= */
-/* =========================================================
-   HEADER ACTIONS — FINAL ALIGNMENT
-   ========================================================= */
 
 .analysis-header-actions {
   width: 100%;
@@ -267,6 +264,7 @@
   cursor: pointer;
 }
 
+
 /* =========================================================
    MAIN LAYOUT
    ========================================================= */
@@ -336,31 +334,6 @@
 
 
 /* =========================================================
-   REMOVE INTERPRETED PLAN
-   ========================================================= */
-
-.analysis-sidebar .analysis-steps {
-  display: none;
-}
-
-.analysis-sidebar .analysis-steps + * {
-  display: none;
-}
-
-.analysis-steps {
-  display: none;
-}
-
-.analysis-step {
-  display: none;
-}
-
-.step-indicator {
-  display: none;
-}
-
-
-/* =========================================================
    SECTION LABELS
    ========================================================= */
 
@@ -422,7 +395,7 @@
 .analysis-data {
   padding-bottom: 0;
 
-  margin-bottom: 0;
+  margin-bottom: 32px;
 
   border-bottom: 0;
 }
@@ -471,6 +444,32 @@
   line-height: 1.45;
 
   letter-spacing: -0.1px;
+}
+
+/* =========================================================
+   INDICATORS — LEFT SIDEBAR
+   ========================================================= */
+
+.analysis-indicators {
+  margin-top: 28px;
+
+  padding-top: 28px;
+
+  border-top: 1px solid var(--soft-line);
+}
+
+.analysis-indicators .analysis-section-label {
+  margin-bottom: 18px;
+}
+
+.indicator-secondary-label {
+  margin-top: 32px;
+}
+
+.analysis-indicators .finding-analysis.large {
+  font-size: 12px;
+
+  line-height: 1.4;
 }
 
 
@@ -777,7 +776,7 @@
   min-width: 0;
   min-height: 0;
 
-  overflow-y: auto;
+  overflow: hidden;
 
   display: flex;
   flex-direction: column;
@@ -800,10 +799,6 @@
   margin-bottom: 25px;
 
   border-bottom: 1px solid var(--soft-line);
-}
-
-.findings-section:last-of-type {
-  margin-bottom: 0;
 }
 
 
@@ -874,6 +869,14 @@
    DISTRIBUTION
    ========================================================= */
 
+.distribution-section {
+  flex: 0 0 auto;
+
+  margin-bottom: 0;
+
+  padding-bottom: 24px;
+}
+
 .distribution-chart {
   height: 82px;
 
@@ -886,8 +889,6 @@
   padding:
     0 4px
     8px;
-
-  border-bottom: 1px solid var(--line);
 
   background:
     repeating-linear-gradient(
@@ -945,12 +946,8 @@
 
 
 /* =========================================================
-   PRIMARY ANALYSIS
+   ANALYSIS TEXT
    ========================================================= */
-
-.secondary-label {
-  margin-top: 27px;
-}
 
 .finding-analysis {
   font-family:
@@ -975,6 +972,8 @@
 
 .view-details-button {
   width: 100%;
+
+  flex: 0 0 auto;
 
   margin-top: auto;
 
@@ -1103,4 +1102,12 @@
 
     width: 110px;
   }
+}
+
+/* =========================================================
+   REMOVE DISTRIBUTION SECTION DIVIDER
+   ========================================================= */
+
+.findings-section:nth-child(2) {
+  border-bottom: 0;
 }
