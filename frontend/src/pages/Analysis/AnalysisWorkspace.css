@@ -965,17 +965,30 @@
   font-size: 12px;
 }
 
+/* =========================================================
+   ANALYSIS NAVIGATION
+   ========================================================= */
+
+.analysis-navigation-buttons {
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+
+  margin-top: auto;
+}
+
 
 /* =========================================================
-   VIEW DETAILS
+   LAYERS / VIEW DETAILS BUTTONS
    ========================================================= */
 
 .view-details-button {
   width: 100%;
 
   flex: 0 0 auto;
-
-  margin-top: auto;
 
   padding: 16px 17px;
 
@@ -1009,7 +1022,6 @@
 
   color: var(--ink);
 }
-
 
 /* =========================================================
    RESPONSIVE

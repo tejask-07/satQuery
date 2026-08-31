@@ -6,11 +6,13 @@ import "./AnalysisWorkspace.css";
 interface AnalysisWorkspaceProps {
   result: QueryResponse;
   onViewDetails: () => void;
+  onViewLayers: () => void;
 }
 
 function AnalysisWorkspace({
   result,
   onViewDetails,
+  onViewLayers,
 }: AnalysisWorkspaceProps) {
 
   const { plan } = result;
@@ -163,21 +165,13 @@ function AnalysisWorkspace({
 
         </div>
 
-
         <div className="analysis-header-actions">
 
-          <button
-            type="button"
-            className="analysis-export"
-          >
+          <button type = "button" className="analysis-export">
             EXPORT
           </button>
 
-          <button
-            type="button"
-            className="analysis-menu"
-            aria-label="Open menu"
-          >
+          <button type="button" className="analysis-menu" aria-label="Open Menu">
             ☰
           </button>
 
@@ -590,21 +584,31 @@ function AnalysisWorkspace({
               VIEW DETAILS
               ================================================= */}
 
-          <button
-            type="button"
-            className="view-details-button"
-            onClick={onViewDetails}
-          >
+          <div className="analysis-navigation-button">
 
-            <span>
-              VIEW DETAILS
-            </span>
+            <button type="button" className="view-details-button layers-navigation-button" onClick={onViewLayers}>
+              <span>
+                LAYERS
+              </span>
 
-            <span>
-              →
-            </span>
+              <span>
+                →
+              </span>
+            </button>
 
-          </button>
+            <button type="button" className="view-details-button" onClick={onViewDetails}>
+
+              <span>
+                VIEW DETAILS
+              </span>
+
+              <span>
+                →
+              </span>
+              
+            </button>
+
+          </div>
 
 
         </aside>

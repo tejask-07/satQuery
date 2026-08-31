@@ -3,15 +3,14 @@ import { useState } from "react";
 import LandingPage from "./pages/Landing/LandingPage";
 import AnalysisWorkspace from "./pages/Analysis/AnalysisWorkspace";
 import ResultsInsights from "./pages/Results/ResultsInsights";
+import LayersVisualization from "./pages/Layers/LayerVisualization";
 
 import {
   submitQuery,
   type QueryResponse,
 } from "./api/query";
 
-
 const USE_MOCK_DATA = true;
-
 
 const MOCK_RESULT: QueryResponse = {
   status: "analysis complete",
@@ -69,7 +68,7 @@ const MOCK_RESULT: QueryResponse = {
 function App() {
 
   const [currentPage, setCurrentPage] = useState<
-    "landing" | "analysis" | "results"
+    "landing" | "analysis" | "results" | "layers"
   >("landing");
 
   const [result, setResult] =
@@ -121,10 +120,6 @@ function App() {
       }
 
 
-      /*
-       * REAL BACKEND
-       */
-
       const response =
         await submitQuery(query);
 
@@ -166,6 +161,11 @@ function App() {
   };
 
 
+  const goToLayers = () => {
+    setCurrentPage("layers");
+  };
+
+
   /*
    * =========================================================
    * LANDING
@@ -203,6 +203,7 @@ function App() {
       <AnalysisWorkspace
         result={result}
         onViewDetails={goToResults}
+        onViewLayers={goToLayers}
       />
     );
   }
@@ -225,8 +226,21 @@ function App() {
 
 
   /*
-   * Fallback
+   * =========================================================
+   * LAYERS
+   * =========================================================
    */
+
+  if (currentPage === "layers" && result) {
+
+    return (
+      <LayersVisualization
+        result={result}
+        onBack={goToAnalysis}
+      />
+    );
+  }
+
 
   return null;
 }
