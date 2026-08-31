@@ -2,21 +2,16 @@ import { useState } from "react";
 
 import LandingPage from "./pages/Landing/LandingPage";
 import AnalysisWorkspace from "./pages/Analysis/AnalysisWorkspace";
+import ResultsInsights from "./pages/Results/ResultsInsights";
 
 import {
   submitQuery,
   type QueryResponse,
 } from "./api/query";
 
-/*
- * TEMPORARY
- *
- * Keep this true while designing the workspace.
- *
- * When the backend + real raster data are ready,
- * change this to false.
- */
+
 const USE_MOCK_DATA = true;
+
 
 const MOCK_RESULT: QueryResponse = {
   status: "analysis complete",
@@ -72,6 +67,11 @@ const MOCK_RESULT: QueryResponse = {
 
 
 function App() {
+
+  const [currentPage, setCurrentPage] = useState<
+    "landing" | "analysis" | "results"
+  >("landing");
+
   const [result, setResult] =
     useState<QueryResponse | null>(null);
 
@@ -82,32 +82,40 @@ function App() {
     useState<string | null>(null);
 
 
+  /*
+   * =========================================================
+   * QUERY
+   * =========================================================
+   */
+
   const handleQuery = async (query: string) => {
+
     setLoading(true);
     setError(null);
 
     try {
 
-      /*
-       * TEMPORARY MOCK
-       *
-       * This lets us build the complete workspace
-       * without depending on the missing TIFF files.
-       */
       if (USE_MOCK_DATA) {
+
         await new Promise((resolve) =>
           setTimeout(resolve, 700)
         );
 
-        setResult({
+        const mockResult: QueryResponse = {
           ...MOCK_RESULT,
 
           plan: {
             ...MOCK_RESULT.plan,
 
-            task: query || MOCK_RESULT.plan.task,
+            task:
+              query ||
+              MOCK_RESULT.plan.task,
           },
-        });
+        };
+
+        setResult(mockResult);
+
+        setCurrentPage("analysis");
 
         return;
       }
@@ -117,9 +125,12 @@ function App() {
        * REAL BACKEND
        */
 
-      const response = await submitQuery(query);
+      const response =
+        await submitQuery(query);
 
       setResult(response);
+
+      setCurrentPage("analysis");
 
     } catch (err) {
 
@@ -132,16 +143,37 @@ function App() {
       );
 
     } finally {
+
       setLoading(false);
+
     }
   };
 
 
   /*
-   * LANDING
+   * =========================================================
+   * NAVIGATION
+   * =========================================================
    */
 
-  if (!result) {
+  const goToAnalysis = () => {
+    setCurrentPage("analysis");
+  };
+
+
+  const goToResults = () => {
+    setCurrentPage("results");
+  };
+
+
+  /*
+   * =========================================================
+   * LANDING
+   * =========================================================
+   */
+
+  if (currentPage === "landing") {
+
     return (
       <>
         <LandingPage
@@ -160,14 +192,44 @@ function App() {
 
 
   /*
-   * ANALYSIS WORKSPACE
+   * =========================================================
+   * ANALYSIS
+   * =========================================================
    */
 
-  return (
-    <AnalysisWorkspace
-      result={result}
-    />
-  );
+  if (currentPage === "analysis" && result) {
+
+    return (
+      <AnalysisWorkspace
+        result={result}
+        onViewDetails={goToResults}
+      />
+    );
+  }
+
+
+  /*
+   * =========================================================
+   * RESULTS
+   * =========================================================
+   */
+
+  if (currentPage === "results" && result) {
+
+    return (
+      <ResultsInsights
+        result={result}
+      />
+    );
+  }
+
+
+  /*
+   * Fallback
+   */
+
+  return null;
 }
+
 
 export default App;

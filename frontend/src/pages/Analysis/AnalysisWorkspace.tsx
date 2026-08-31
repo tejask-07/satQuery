@@ -5,10 +5,12 @@ import "./AnalysisWorkspace.css";
 
 interface AnalysisWorkspaceProps {
   result: QueryResponse;
+  onViewDetails: () => void;
 }
 
 function AnalysisWorkspace({
   result,
+  onViewDetails,
 }: AnalysisWorkspaceProps) {
 
   const { plan } = result;
@@ -591,6 +593,7 @@ function AnalysisWorkspace({
           <button
             type="button"
             className="view-details-button"
+            onClick={onViewDetails}
           >
 
             <span>

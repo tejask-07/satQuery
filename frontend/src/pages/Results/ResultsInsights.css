@@ -1,0 +1,813 @@
+/* =========================================================
+   SATQUERY — RESULTS & INSIGHTS
+   ========================================================= */
+
+.results-workspace {
+  --paper: #f1ede4;
+  --panel: #f5f1e9;
+  --ink: #11110f;
+  --muted: #5f5b54;
+
+  --line: rgba(17, 17, 15, 0.14);
+  --soft-line: rgba(17, 17, 15, 0.09);
+
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  box-sizing: border-box;
+
+  padding: 26px 40px 32px;
+
+  background: var(--paper);
+  color: var(--ink);
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   PAGE HEADER
+   ========================================================= */
+
+.results-page-header {
+  width: 100%;
+
+  display: none;
+  align-items: baseline;
+
+  gap: 9px;
+
+  margin-bottom: 14px;
+
+  box-sizing: border-box;
+}
+
+.results-page-number {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 15px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.2px;
+}
+
+.results-page-header h1 {
+  margin: 0;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 20px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.15px;
+}
+
+
+/* =========================================================
+   MAIN CARD
+   ========================================================= */
+
+.results-card {
+  width: 100%;
+
+  height: calc(100dvh - 94px);
+
+  min-height: 0;
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.55fr)
+    minmax(360px, 0.95fr);
+
+  grid-template-rows:
+    50px
+    minmax(0, 1fr);
+
+  box-sizing: border-box;
+
+  border: 1px solid var(--line);
+
+  background: var(--paper);
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   CARD HEADER
+   ========================================================= */
+
+.results-card-header {
+  grid-column: 1 / -1;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 30px;
+
+  box-sizing: border-box;
+
+  border-bottom: 1px solid var(--line);
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.4px;
+}
+
+
+/* =========================================================
+   LEFT COLUMN
+   ========================================================= */
+
+.results-left {
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  border-right: 1px solid var(--line);
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   RIGHT COLUMN
+   ========================================================= */
+
+.results-right {
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   GENERIC SECTION LABEL
+   ========================================================= */
+
+.results-section-label {
+  margin-bottom: 16px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.45px;
+}
+
+
+/* =========================================================
+   WHAT CHANGED
+   ========================================================= */
+
+.results-metrics {
+  flex: 0 0 auto;
+
+  padding:
+    24px 30px
+    20px;
+
+  box-sizing: border-box;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.results-metric-grid {
+  width: 100%;
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 24px;
+}
+
+.results-metric {
+  min-width: 0;
+}
+
+.results-metric-value {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 30px;
+  font-weight: 500;
+
+  line-height: 1;
+
+  letter-spacing: -1.3px;
+
+  white-space: nowrap;
+}
+
+.results-metric-label {
+  margin-top: 8px;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 7.5px;
+  font-weight: 500;
+
+  line-height: 1.3;
+
+  letter-spacing: 0.15px;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   CHANGE HIGHLIGHTS
+   ========================================================= */
+
+.results-highlights {
+  flex: 0 0 auto;
+
+  padding:
+    21px 30px
+    20px;
+
+  box-sizing: border-box;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.highlight-item {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 11px;
+
+  margin-bottom: 13px;
+}
+
+.highlight-item:last-child {
+  margin-bottom: 0;
+}
+
+.highlight-dot {
+  width: 8px;
+  height: 8px;
+
+  flex: 0 0 8px;
+
+  margin-top: 3px;
+
+  border-radius: 50%;
+}
+
+.highlight-dot.red {
+  background: #d83220;
+}
+
+.highlight-dot.orange {
+  background: #f27624;
+}
+
+.highlight-dot.yellow {
+  background: #e8b923;
+}
+
+.highlight-item p {
+  margin: 0;
+
+  max-width: 700px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 10px;
+  font-weight: 500;
+
+  line-height: 1.45;
+}
+
+
+/* =========================================================
+   EVIDENCE
+   ========================================================= */
+
+.results-evidence {
+  flex: 1 1 auto;
+
+  min-height: 0;
+
+  padding:
+    21px 30px
+    20px;
+
+  box-sizing: border-box;
+
+  overflow: hidden;
+}
+
+.evidence-grid {
+  width: 100%;
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 11px;
+}
+
+.evidence-item {
+  min-width: 0;
+}
+
+.evidence-image {
+  width: 100%;
+
+  aspect-ratio: 1.42 / 1;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 5px;
+
+  overflow: hidden;
+
+  box-sizing: border-box;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 7px;
+
+  color: rgba(245, 241, 233, 0.65);
+}
+
+
+/* =========================================================
+   TEMPORARY EVIDENCE VISUALS
+   ========================================================= */
+
+.evidence-ndvi-difference {
+  background:
+    radial-gradient(
+      circle at 30% 35%,
+      #e78b2f 0 12%,
+      transparent 13%
+    ),
+    radial-gradient(
+      circle at 62% 58%,
+      #b73a29 0 17%,
+      transparent 18%
+    ),
+    radial-gradient(
+      circle at 40% 72%,
+      #4c7134 0 19%,
+      transparent 20%
+    ),
+    #555342;
+}
+
+.evidence-ndvi-2021 {
+  background:
+    radial-gradient(
+      circle at 32% 30%,
+      #83b34e 0 14%,
+      transparent 15%
+    ),
+    radial-gradient(
+      circle at 52% 48%,
+      #4f813b 0 20%,
+      transparent 21%
+    ),
+    radial-gradient(
+      circle at 72% 60%,
+      #356832 0 25%,
+      transparent 26%
+    ),
+    #234a2b;
+}
+
+.evidence-ndvi-2025 {
+  background:
+    radial-gradient(
+      circle at 30% 52%,
+      #719e45 0 17%,
+      transparent 18%
+    ),
+    radial-gradient(
+      circle at 55% 72%,
+      #174d28 0 20%,
+      transparent 21%
+    ),
+    radial-gradient(
+      circle at 72% 35%,
+      #47793b 0 24%,
+      transparent 25%
+    ),
+    #21492b;
+}
+
+.evidence-ndbi {
+  background:
+    radial-gradient(
+      circle at 30% 35%,
+      #8f8976 0 17%,
+      transparent 18%
+    ),
+    radial-gradient(
+      circle at 47% 70%,
+      #aaa38e 0 12%,
+      transparent 13%
+    ),
+    radial-gradient(
+      circle at 70% 55%,
+      #3d3b38 0 23%,
+      transparent 24%
+    ),
+    #514e47;
+}
+
+.evidence-label {
+  margin-top: 7px;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 7px;
+  font-weight: 500;
+
+  line-height: 1.2;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   CONFIDENCE
+   ========================================================= */
+
+.confidence-section {
+  flex: 0 0 205px;
+
+  padding:
+    24px 30px
+    20px;
+
+  box-sizing: border-box;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.confidence-ring {
+  width: 116px;
+  height: 116px;
+
+  margin: 2px auto 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background:
+    conic-gradient(
+      #217b80 0deg 110deg,
+      #8bbd55 110deg 327.6deg,
+      #dce2d9 327.6deg 360deg
+    );
+}
+
+.confidence-ring-inner {
+  width: 88px;
+  height: 88px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: var(--paper);
+}
+
+.confidence-ring-inner span {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 26px;
+  font-weight: 500;
+
+  letter-spacing: -1px;
+}
+
+.confidence-status {
+  margin-top: 7px;
+
+  text-align: center;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 7px;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   BASED ON
+   ========================================================= */
+
+.based-on-section {
+  flex: 0 0 175px;
+
+  padding:
+    22px 30px
+    20px;
+
+  box-sizing: border-box;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+
+  gap: 0;
+
+  margin-bottom: 15px;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 500;
+
+  line-height: 1.3;
+}
+
+.check-item:last-child {
+  margin-bottom: 0;
+}
+
+.check-mark {
+  width: 13px;
+  height: 13px;
+
+  flex: 0 0 13px;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #e4eadf;
+
+  color: #5f8757;
+
+  font-size: 8px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   AI INTERPRETATION
+   ========================================================= */
+
+.interpretation-section {
+  flex: 1 1 auto;
+
+  min-height: 0;
+
+  padding:
+    24px 30px
+    18px;
+
+  box-sizing: border-box;
+
+  overflow: hidden;
+}
+
+.interpretation-section p {
+  margin:
+    0 0
+    17px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 500;
+
+  line-height: 1.55;
+
+  color: var(--ink);
+}
+
+.interpretation-section p:last-child {
+  margin-bottom: 0;
+}
+
+
+/* =========================================================
+   DOWNLOAD REPORT
+   ========================================================= */
+
+.download-report-button {
+  flex: 0 0 auto;
+
+  width: calc(100% - 60px);
+
+  height: 44px;
+
+  margin:
+    0 30px
+    24px;
+
+  padding: 0 17px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  box-sizing: border-box;
+
+  border: 1px solid var(--ink);
+
+  background: var(--ink);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 8px;
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: 0.45px;
+
+  cursor: pointer;
+}
+
+.download-report-button:hover {
+  background: transparent;
+
+  color: var(--ink);
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1100px) {
+
+  .results-workspace {
+    padding:
+      22px 28px
+      28px;
+  }
+
+  .results-card {
+    grid-template-columns:
+      minmax(0, 1.45fr)
+      minmax(320px, 0.9fr);
+  }
+
+  .results-metric-grid {
+    gap: 15px;
+  }
+
+  .results-metric-value {
+    font-size: 25px;
+  }
+
+  .results-card-header,
+  .results-metrics,
+  .results-highlights,
+  .results-evidence,
+  .confidence-section,
+  .based-on-section,
+  .interpretation-section {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+
+  .download-report-button {
+    width: calc(100% - 44px);
+    margin-left: 22px;
+    margin-right: 22px;
+  }
+}
+
+
+@media (max-width: 850px) {
+
+  .results-workspace {
+    overflow-y: auto;
+
+    padding:
+      20px;
+  }
+
+  .results-card {
+    height: auto;
+
+    min-height: calc(100dvh - 80px);
+
+    grid-template-columns: 1fr;
+
+    grid-template-rows:
+      50px
+      auto
+      auto;
+  }
+
+  .results-card-header {
+    grid-column: 1;
+  }
+
+  .results-left {
+    border-right: 0;
+
+    border-bottom: 1px solid var(--line);
+  }
+
+  .results-right {
+    min-height: 650px;
+  }
+
+  .results-metric-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .evidence-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
