@@ -51,11 +51,22 @@ def calculate_ndvi(
         nir,
     )
 
+    valid = np.isfinite(ndvi)
+    valid_pixels = int(np.sum(valid))
+    total_pixels = int(ndvi.size)
+    min_val = float(np.min(ndvi[valid])) if valid_pixels > 0 else None
+    max_val = float(np.max(ndvi[valid])) if valid_pixels > 0 else None
+    mean_val = float(np.mean(ndvi[valid])) if valid_pixels > 0 else None
+
     return {
         "status": "success",
         "index": "NDVI",
         "data": ndvi,
-        "mean": _mean_valid(ndvi),
+        "mean": mean_val,
+        "min_value": min_val,
+        "max_value": max_val,
+        "valid_pixels": valid_pixels,
+        "total_pixels": total_pixels,
     }
 
 
@@ -78,11 +89,22 @@ def calculate_ndwi(
         nir,
     )
 
+    valid = np.isfinite(ndwi)
+    valid_pixels = int(np.sum(valid))
+    total_pixels = int(ndwi.size)
+    min_val = float(np.min(ndwi[valid])) if valid_pixels > 0 else None
+    max_val = float(np.max(ndwi[valid])) if valid_pixels > 0 else None
+    mean_val = float(np.mean(ndwi[valid])) if valid_pixels > 0 else None
+
     return {
         "status": "success",
         "index": "NDWI",
         "data": ndwi,
-        "mean": _mean_valid(ndwi),
+        "mean": mean_val,
+        "min_value": min_val,
+        "max_value": max_val,
+        "valid_pixels": valid_pixels,
+        "total_pixels": total_pixels,
     }
 
 
@@ -105,11 +127,22 @@ def calculate_ndbi(
         nir,
     )
 
+    valid = np.isfinite(ndbi)
+    valid_pixels = int(np.sum(valid))
+    total_pixels = int(ndbi.size)
+    min_val = float(np.min(ndbi[valid])) if valid_pixels > 0 else None
+    max_val = float(np.max(ndbi[valid])) if valid_pixels > 0 else None
+    mean_val = float(np.mean(ndbi[valid])) if valid_pixels > 0 else None
+
     return {
         "status": "success",
         "index": "NDBI",
         "data": ndbi,
-        "mean": _mean_valid(ndbi),
+        "mean": mean_val,
+        "min_value": min_val,
+        "max_value": max_val,
+        "valid_pixels": valid_pixels,
+        "total_pixels": total_pixels,
     }
 
 

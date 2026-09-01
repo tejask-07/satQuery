@@ -10,6 +10,13 @@ env/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/data/cache/
+data/cache/
 
 # OS
 .DS_Store
@@ -52,3 +59,9 @@ frontend/dist/
 
 #tif
 *.tif
+
+# Large BigEarthNet dataset
+backend/BigEarthNet-S1_AT_pure.tar
+# BigEarthNet datasets / generated metadata
+backend/BigEarthNet-S1_AT_pure.tar
+backend/data/metadata/bigearthnet_txt/BigEarthNet.txt.parquet

@@ -1,23 +1,27 @@
+from pathlib import Path
+
+import cv2
 import numpy as np
 
 
 def detect_change(
     before: np.ndarray,
     after: np.ndarray,
-    threshold: float = 0.05,
+    threshold: float = 0.01,
+    output_path: str | None = None,
 ) -> dict:
     """
     Detect temporal change between two raster/index arrays.
 
-    Positive change:
-        after > before
-
-    Negative change:
-        after < before
-
     A pixel is considered changed when:
 
         abs(after - before) >= threshold
+
+    Positive changed pixels:
+        after > before
+
+    Negative changed pixels:
+        after < before
     """
 
     before = np.asarray(
@@ -53,7 +57,7 @@ def detect_change(
     )
 
     # --------------------------------------------------------
-    # Change raster
+    # Signed change raster
     # --------------------------------------------------------
 
     change = np.full(
@@ -68,7 +72,7 @@ def detect_change(
     )
 
     # --------------------------------------------------------
-    # Changed pixels
+    # Significant changed pixels
     # --------------------------------------------------------
 
     changed_mask = (
@@ -120,6 +124,9 @@ def detect_change(
 
     # --------------------------------------------------------
     # Increase / decrease
+    #
+    # IMPORTANT:
+    # These count ONLY statistically significant pixels.
     # --------------------------------------------------------
 
     increased_pixels = int(
@@ -138,23 +145,94 @@ def detect_change(
 
     # --------------------------------------------------------
     # Overall change type
+    #
+    # IMPORTANT:
+    # If there are zero significant changed pixels,
+    # report no_change regardless of the sign of mean_change.
     # --------------------------------------------------------
 
-    if mean_change is None:
+    if valid_pixels == 0:
+
         change_type = "no_data"
 
-    elif mean_change > 0:
+    elif changed_pixels == 0:
+
+        change_type = "no_change"
+
+    elif increased_pixels > decreased_pixels:
+
         change_type = "increase"
 
-    elif mean_change < 0:
+    elif decreased_pixels > increased_pixels:
+
         change_type = "decrease"
 
     else:
-        change_type = "no_change"
+
+        change_type = "mixed"
 
     # --------------------------------------------------------
-    # Return
+    # Visualization
     # --------------------------------------------------------
+
+    visualization_path = None
+
+    if output_path is not None:
+
+        output_path = Path(
+            output_path
+        )
+
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        absolute_change = np.abs(
+            np.nan_to_num(
+                change,
+                nan=0.0,
+            )
+        )
+
+        max_change = float(
+            np.max(
+                absolute_change
+            )
+        )
+
+        if max_change > 0:
+
+            visualization = (
+                absolute_change
+                / max_change
+                * 255.0
+            ).astype(np.uint8)
+
+        else:
+
+            visualization = np.zeros(
+                change.shape,
+                dtype=np.uint8,
+            )
+
+        success = cv2.imwrite(
+            str(output_path),
+            visualization,
+        )
+
+        if not success:
+            raise IOError(
+                "Failed to save change visualization: "
+                f"{output_path}"
+            )
+
+        visualization_path = str(
+            output_path
+        )
+
+    min_value = float(np.min(change[valid_mask])) if valid_pixels > 0 else None
+    max_value = float(np.max(change[valid_mask])) if valid_pixels > 0 else None
 
     return {
         "status": "success",
@@ -162,10 +240,14 @@ def detect_change(
         "mean_before": mean_before,
         "mean_after": mean_after,
         "mean_change": mean_change,
+        "min_value": min_value,
+        "max_value": max_value,
 
         "changed_pixels": changed_pixels,
         "valid_pixels": valid_pixels,
-        "total_pixels": int(before.size),
+        "total_pixels": int(
+            before.size
+        ),
 
         "change_ratio": float(
             change_ratio
@@ -181,4 +263,6 @@ def detect_change(
         ),
 
         "change_map": change,
+
+        "visualization_path": visualization_path,
     }

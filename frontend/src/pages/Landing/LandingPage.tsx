@@ -5,11 +5,13 @@ import "./LandingPage.css";
 interface LandingPageProps {
   onSubmit: (query: string) => void;
   loading: boolean;
+  error?: string | null;
 }
 
 function LandingPage({
   onSubmit,
   loading,
+  error,
 }: LandingPageProps) {
   return (
     <main className="landing-page">
@@ -83,6 +85,7 @@ function LandingPage({
             <HeroQuery
               onSubmit={onSubmit}
               loading={loading}
+              error={error}
             />
 
           </div>

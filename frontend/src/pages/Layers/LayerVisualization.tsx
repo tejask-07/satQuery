@@ -1,16 +1,40 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 import {
   MapContainer,
   TileLayer,
   Polygon,
   Circle,
+  ImageOverlay,
+  useMap,
 } from "react-leaflet";
 
 import type { QueryResponse } from "../../api/query";
 
 import "leaflet/dist/leaflet.css";
 import "./LayerVisualization.css";
+
+function LayersViewportController({
+  bounds,
+  center,
+}: {
+  bounds: [[number, number], [number, number]] | null;
+  center: [number, number];
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (bounds) {
+      try {
+        map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+      } catch (err) {
+        console.warn("fitBounds failed:", err);
+      }
+    } else {
+      map.setView(center, 10);
+    }
+  }, [map, bounds, center]);
+  return null;
+}
 
 
 interface LayersVisualizationProps {
@@ -38,12 +62,14 @@ type VisualizationType =
 
 
 function LayersVisualization({
-  // result,
+  result,
   onBack,
 }: LayersVisualizationProps) {
+  const metric = (String(result?.statistics?.metric || result?.plan?.metric || "NDVI").toUpperCase()) as IndexType;
+  const initialIndex: IndexType = ["NDVI", "NDWI", "NDBI"].includes(metric) ? metric : "NDVI";
 
   const [selectedIndex, setSelectedIndex] =
-    useState<IndexType>("NDVI");
+    useState<IndexType>(initialIndex);
 
   const [baseLayer, setBaseLayer] =
     useState<BaseLayer>("trueColor");
@@ -67,27 +93,92 @@ function LayersVisualization({
   const [reference, setReference] =
     useState<"before" | "after">("after");
 
+  const dateBefore = result?.plan?.time_start ?? "2021";
+  const dateAfter = result?.plan?.time_end ?? "2025";
 
   /*
    * =========================================================
-   * AOI
+   * REAL AOI & GEOGRAPHIC BOUNDS
    * =========================================================
-   *
-   * Temporary geometry.
-   *
-   * Replace with backend AOI geometry later.
    */
 
-  const aoi: [number, number][] = [
-    [19.32, 72.70],
-    [19.45, 72.92],
-    [19.30, 73.08],
-    [19.02, 73.12],
-    [18.78, 72.98],
-    [18.70, 72.78],
-    [18.88, 72.66],
-    [19.12, 72.61],
-  ];
+  const aoi: [number, number][] = useMemo(() => {
+    const rawAoi = result?.plan?.aoi as any;
+    if (!rawAoi) {
+      return [
+        [19.32, 72.70],
+        [19.45, 72.92],
+        [19.30, 73.08],
+        [19.02, 73.12],
+        [18.78, 72.98],
+        [18.70, 72.78],
+        [18.88, 72.66],
+        [19.12, 72.61],
+      ];
+    }
+    if (rawAoi.type === "Polygon" && Array.isArray(rawAoi.coordinates?.[0])) {
+      return rawAoi.coordinates[0].map((pt: number[]) => [Number(pt[1]), Number(pt[0])] as [number, number]);
+    }
+    if (Array.isArray(rawAoi) && rawAoi.length > 0 && Array.isArray(rawAoi[0])) {
+      return rawAoi.map((pt: number[]) => [Number(pt[0]), Number(pt[1])] as [number, number]);
+    }
+    return [];
+  }, [result?.plan?.aoi]);
+
+  const rawBounds = (result?.layers?.[0] as any)?.bounds ?? result?.bounds ?? null;
+  const realBounds: [[number, number], [number, number]] | null = useMemo(() => {
+    if (Array.isArray(rawBounds) && rawBounds.length === 2 && Array.isArray(rawBounds[0]) && Array.isArray(rawBounds[1])) {
+      const s = Number(rawBounds[0][0]);
+      const w = Number(rawBounds[0][1]);
+      const n = Number(rawBounds[1][0]);
+      const e = Number(rawBounds[1][1]);
+      if ([s, w, n, e].every(Number.isFinite)) {
+        return [[s, w], [n, e]];
+      }
+    }
+    if (aoi.length >= 3) {
+      const lats = aoi.map((p) => p[0]);
+      const lngs = aoi.map((p) => p[1]);
+      return [
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)],
+      ];
+    }
+    return null;
+  }, [rawBounds, aoi]);
+
+  const mapCenter: [number, number] = useMemo(() => {
+    if (realBounds) {
+      return [
+        (realBounds[0][0] + realBounds[1][0]) / 2,
+        (realBounds[0][1] + realBounds[1][1]) / 2,
+      ];
+    }
+    if (aoi.length > 0) {
+      return [
+        aoi.reduce((sum, p) => sum + p[0], 0) / aoi.length,
+        aoi.reduce((sum, p) => sum + p[1], 0) / aoi.length,
+      ];
+    }
+    return [19.076, 72.8777];
+  }, [realBounds, aoi]);
+
+  const rawVisUrl =
+    (result?.layers?.[0] as any)?.visualization_url ??
+    (result?.layers?.[0] as any)?.classified_visualization_url ??
+    result?.visualization_url ??
+    null;
+
+  const fullVisualizationUrl = useMemo(() => {
+    if (!rawVisUrl) return null;
+    const cleanUrl = String(rawVisUrl).trim();
+    if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+      return cleanUrl;
+    }
+    const baseUrl = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+    const pathUrl = cleanUrl.startsWith("/") ? cleanUrl : `/${cleanUrl}`;
+    return `${baseUrl}${pathUrl}`;
+  }, [rawVisUrl]);
 
 
   /*
@@ -412,7 +503,7 @@ function LayersVisualization({
             />
 
             <span>
-              Before (2021)
+              Before ({dateBefore})
             </span>
 
           </label>
@@ -430,7 +521,7 @@ function LayersVisualization({
             />
 
             <span>
-              After (2025)
+              After ({dateAfter})
             </span>
 
           </label>
@@ -503,7 +594,7 @@ function LayersVisualization({
 
           {selectedIndex} CHANGE
           {" "}
-          (2021 → 2025)
+          ({dateBefore} → {dateAfter})
 
         </div>
 
@@ -511,7 +602,7 @@ function LayersVisualization({
         <div className="layers-map">
 
           <MapContainer
-            center={[19.076, 72.8777]}
+            center={mapCenter}
             zoom={10}
             zoomControl={true}
             attributionControl={true}
@@ -523,10 +614,24 @@ function LayersVisualization({
               attribution="Tiles © Esri"
             />
 
+            <LayersViewportController
+              bounds={realBounds}
+              center={mapCenter}
+            />
+
+            {/* REAL RASTER OVERLAY */}
+            {fullVisualizationUrl && realBounds && (
+              <ImageOverlay
+                url={fullVisualizationUrl}
+                bounds={realBounds}
+                opacity={opacity / 100}
+                zIndex={1000}
+              />
+            )}
 
             {/* AOI */}
 
-            {analysisLayers.aoiBoundary && (
+            {analysisLayers.aoiBoundary && aoi.length > 0 && (
               <Polygon
                 positions={aoi}
                 pathOptions={{

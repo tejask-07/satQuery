@@ -2,10 +2,10 @@ import "./ResultsInsights.css";
 
 interface ResultsInsightsProps {
   result?: any;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
-function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
+function ResultsInsights({ result, onBack }: ResultsInsightsProps) {
   const statistics = result?.statistics ?? {};
 
   const confidence =
@@ -13,11 +13,38 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
       ? `${Math.round(result.confidence * 100)}%`
       : "91%";
 
-  const areaAffected =
-    statistics.area_affected ?? "18.4 km²";
+  const metric = String(
+    statistics.metric ?? result?.plan?.metric ?? "NDVI"
+  ).toUpperCase();
 
-  const averageNdvi =
-    statistics.average_ndvi_change ?? "-23.7%";
+  const meanChange = statistics.mean_change as number | undefined;
+
+  const averageChange =
+    meanChange != null
+      ? `${meanChange >= 0 ? "+" : ""}${meanChange.toFixed(4)}`
+      : "—";
+
+  const changedPixels =
+    statistics.changed_pixels != null
+      ? `${statistics.changed_pixels} px`
+      : "—";
+
+  const pixelsAnalyzed =
+    statistics.valid_pixels != null
+      ? `${statistics.valid_pixels} px`
+      : statistics.total_pixels != null
+        ? `${statistics.total_pixels} px`
+        : "—";
+
+  const evidenceList = Array.isArray(result?.evidence) ? result.evidence : [];
+  const firstEvidence = (evidenceList[0] || {}) as any;
+  const evidenceImages = Array.isArray(firstEvidence?.images) ? firstEvidence.images : [];
+  const realDateBefore = evidenceImages[0]?.date ?? result?.plan?.time_start ?? "Before";
+  const realDateAfter = evidenceImages[1]?.date ?? result?.plan?.time_end ?? "After";
+  const changeType = String(statistics.change_type ?? "detected change");
+  const changeRatio = statistics.change_ratio != null ? `${(Number(statistics.change_ratio) * 100).toFixed(1)}%` : "significant";
+  const totalPixels = statistics.valid_pixels ?? statistics.total_pixels ?? "multiple";
+  const changedPx = statistics.changed_pixels ?? "analyzed";
 
   return (
     <main className="results-workspace">
@@ -27,7 +54,11 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
           ===================================================== */}
 
       <header className="results-page-header">
-        <button type="button" className="results-back-button" onClick={onBack}>← ANALYSIS</button>
+        {onBack && (
+          <button type="button" className="results-back-button" onClick={onBack}>
+            ← ANALYSIS
+          </button>
+        )}
         <div className="results-page-number">04.</div>
 
         <h1>
@@ -71,7 +102,7 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
 
               <div className="results-metric">
                 <div className="results-metric-value">
-                  {areaAffected}
+                  {changedPixels}
                 </div>
 
                 <div className="results-metric-label">
@@ -82,18 +113,18 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
 
               <div className="results-metric">
                 <div className="results-metric-value">
-                  {averageNdvi}
+                  {averageChange}
                 </div>
 
                 <div className="results-metric-label">
-                  Avg NDVI Change
+                  Avg {metric} Change
                 </div>
               </div>
 
 
               <div className="results-metric">
                 <div className="results-metric-value">
-                  1.24M
+                  {pixelsAnalyzed}
                 </div>
 
                 <div className="results-metric-label">
@@ -132,8 +163,7 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
               <span className="highlight-dot red" />
 
               <p>
-                Vegetation decline is concentrated in the
-                northern and eastern portions of the AOI.
+                {metric} change identified across {changedPx} of {totalPixels} pixels ({changeRatio} area affected).
               </p>
             </div>
 
@@ -142,8 +172,7 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
               <span className="highlight-dot orange" />
 
               <p>
-                Many of these areas coincide with increased
-                built-up surface signatures.
+                Primary change signal: {changeType.toUpperCase()} with mean index variation of {averageChange}.
               </p>
             </div>
 
@@ -152,8 +181,7 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
               <span className="highlight-dot yellow" />
 
               <p>
-                Changes are persistent across multiple
-                observations in the selected period.
+                Multi-temporal Sentinel-2 observations verified between {realDateBefore} and {realDateAfter}.
               </p>
             </div>
 
@@ -175,44 +203,44 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
 
               <div className="evidence-item">
                 <div className="evidence-image evidence-ndvi-difference">
-                  NDVI
+                  {metric}
                 </div>
 
                 <div className="evidence-label">
-                  NDVI Difference
+                  {metric} Change Map
                 </div>
               </div>
 
 
               <div className="evidence-item">
                 <div className="evidence-image evidence-ndvi-2021">
-                  NDVI
+                  {metric}
                 </div>
 
                 <div className="evidence-label">
-                  NDVI (2021)
+                  {metric} ({realDateBefore})
                 </div>
               </div>
 
 
               <div className="evidence-item">
                 <div className="evidence-image evidence-ndvi-2025">
-                  NDVI
+                  {metric}
                 </div>
 
                 <div className="evidence-label">
-                  NDVI (2025)
+                  {metric} ({realDateAfter})
                 </div>
               </div>
 
 
               <div className="evidence-item">
                 <div className="evidence-image evidence-ndbi">
-                  NDBI
+                  S2-L2A
                 </div>
 
                 <div className="evidence-label">
-                  NDBI Change
+                  Surface Reflectance
                 </div>
               </div>
 
@@ -305,23 +333,10 @@ function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
 
 
             <p>
-              The analysis shows a significant reduction in
-              vegetation health between 2021 and 2025.
+              {result?.answer ||
+                statistics?.explanation ||
+                "The remote sensing analysis completed across the multi-temporal observation period."}
             </p>
-
-
-            <p>
-              The strongest declines are aligned with
-              expanding urban and infrastructure development.
-            </p>
-
-
-            <p>
-              This pattern is supported by a corresponding
-              increase in NDBI, indicating surface
-              transformation from natural to built-up areas.
-            </p>
-
           </section>
 
 

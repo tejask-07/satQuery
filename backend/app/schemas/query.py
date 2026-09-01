@@ -17,6 +17,9 @@ class QueryPlan(BaseModel):
     # What the user wants to do
     task: str
 
+    # Area of Interest selected by the user
+    aoi: Optional[dict] = None
+
     # What the analysis is about
     target: Optional[str] = None
 

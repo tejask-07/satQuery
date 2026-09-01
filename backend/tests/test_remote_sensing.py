@@ -1,7 +1,11 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 from app.remote_sensing.io.raster import read_raster, write_raster
 from app.agent.executor import execute_plan
+
+TEST_BAND_PATH = str(Path(__file__).resolve().parents[1] / "test_band.tif")
 
 from app.remote_sensing.indices.ndvi import calculate_ndvi
 from app.remote_sensing.indices.ndwi import calculate_ndwi
@@ -176,7 +180,7 @@ def test_ndvi_handles_zero_denominator():
     assert np.isclose(result[0], 0.0)
     assert np.isnan(result[1])
 def test_read_raster():
-    data, metadata = read_raster("test_band.tif")
+    data, metadata = read_raster(TEST_BAND_PATH)
 
     assert data.shape == (3, 3)
     assert metadata["width"] == 3
@@ -185,7 +189,7 @@ def test_read_raster():
 
 
 def test_write_and_read_raster(tmp_path):
-    data, metadata = read_raster("test_band.tif")
+    data, metadata = read_raster(TEST_BAND_PATH)
 
     output_path = tmp_path / "test_output.tif"
 

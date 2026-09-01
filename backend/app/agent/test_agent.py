@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+# Add backend directory to sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from app.schemas.query import QueryRequest
 from app.agent.parser import parse_query
 from app.agent.planner import create_execution_plan

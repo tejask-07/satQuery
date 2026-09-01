@@ -14,7 +14,7 @@ import {
 import "./index.css";
 
 
-const USE_MOCK_DATA = true;
+const USE_MOCK_DATA = false;
 
 
 const MOCK_RESULT: QueryResponse = {
@@ -78,8 +78,25 @@ function AppContent() {
 
   const navigate = useNavigate();
 
-  const [result, setResult] =
-    useState<QueryResponse | null>(null);
+  const [currentQuery, setCurrentQuery] = useState<string>(() => {
+    try {
+      return (
+        sessionStorage.getItem("satquery_last_query") ||
+        "compare vegetation change between 2021 and 2025"
+      );
+    } catch {
+      return "compare vegetation change between 2021 and 2025";
+    }
+  });
+
+  const [result, setResult] = useState<QueryResponse | null>(() => {
+    try {
+      const saved = sessionStorage.getItem("satquery_last_result");
+      return saved ? (JSON.parse(saved) as QueryResponse) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const [loading, setLoading] =
     useState(false);
@@ -92,8 +109,10 @@ function AppContent() {
      QUERY
      ======================================================= */
 
-  const handleQuery = async (query: string) => {
+  const handleQuery = async (query: string, aoi?: unknown) => {
 
+    const queryToRun = query || currentQuery || "compare vegetation change between 2021 and 2025";
+    setCurrentQuery(queryToRun);
     setLoading(true);
     setError(null);
 
@@ -112,12 +131,18 @@ function AppContent() {
             ...MOCK_RESULT.plan,
 
             task:
-              query ||
+              queryToRun ||
               MOCK_RESULT.plan.task,
           },
         };
 
         setResult(mockResult);
+        try {
+          sessionStorage.setItem("satquery_last_result", JSON.stringify(mockResult));
+          sessionStorage.setItem("satquery_last_query", queryToRun);
+        } catch {
+          // ignore
+        }
 
         navigate("/analysis");
 
@@ -130,9 +155,15 @@ function AppContent() {
          =================================================== */
 
       const response =
-        await submitQuery(query);
+        await submitQuery(queryToRun, aoi);
 
       setResult(response);
+      try {
+        sessionStorage.setItem("satquery_last_result", JSON.stringify(response));
+        sessionStorage.setItem("satquery_last_query", queryToRun);
+      } catch {
+        // ignore
+      }
 
       navigate("/analysis");
 
@@ -165,6 +196,7 @@ function AppContent() {
         <LandingPage
           onSubmit={handleQuery}
           loading={loading}
+          error={error}
         />
 
         {error && (
@@ -191,8 +223,11 @@ function AppContent() {
     return (
       <AnalysisWorkspace
         result={result}
+        currentQuery={currentQuery}
         onViewDetails={() => navigate("/results")}
         onViewLayers={() => navigate("/layers")}
+        onRequery={handleQuery}
+        loading={loading}
       />
     );
 

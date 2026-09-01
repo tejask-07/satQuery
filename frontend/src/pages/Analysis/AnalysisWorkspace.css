@@ -623,6 +623,95 @@
   color: var(--paper);
 }
 
+.map-controls button.active-draw-control {
+  background: var(--ink);
+  color: #f4c43b;
+  outline: 2px solid #f4c43b;
+  outline-offset: -2px;
+}
+
+.map-drawing-badge {
+  position: absolute;
+  z-index: 500;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(17, 17, 15, 0.95);
+  color: #f4c43b;
+  border: 1px solid rgba(244, 196, 59, 0.4);
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.aoi-draw-status {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aoi-status-tag {
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+  font-size: 8px;
+  font-weight: 700;
+  color: #5b9b42;
+  letter-spacing: 0.5px;
+}
+
+.aoi-clear-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+}
+
+.aoi-clear-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.analysis-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 600;
+  background: rgba(241, 237, 228, 0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--ink);
+  backdrop-filter: blur(2px);
+}
+
 
 /* =========================================================
    MAP LEGEND
@@ -651,10 +740,28 @@
 }
 
 .map-legend-title {
-  margin-bottom: 13px;
+  margin-bottom: 10px;
 
   font-size: 8px;
   font-weight: 700;
+}
+
+.legend-gradient-bar {
+  width: 100%;
+  height: 6px;
+  margin-bottom: 12px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #e33420 0%,
+    #f27624 20%,
+    #f4c43b 35%,
+    rgba(136, 137, 132, 0.25) 50%,
+    #a3d977 65%,
+    #5b9b42 80%,
+    #2e7d32 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .legend-item {
@@ -679,15 +786,18 @@
   display: block;
 }
 
-.legend-swatch.high {
+.legend-swatch.high,
+.legend-swatch.high-decrease {
   background: #e33420;
 }
 
-.legend-swatch.moderate {
+.legend-swatch.moderate,
+.legend-swatch.moderate-decrease {
   background: #f27624;
 }
 
-.legend-swatch.slight {
+.legend-swatch.slight,
+.legend-swatch.slight-decrease {
   background: #f4c43b;
 }
 
@@ -695,8 +805,17 @@
   background: #888984;
 }
 
-.legend-swatch.increase {
+.legend-swatch.slight-increase {
+  background: #a3d977;
+}
+
+.legend-swatch.increase,
+.legend-swatch.moderate-increase {
   background: #5b9b42;
+}
+
+.legend-swatch.high-increase {
+  background: #2e7d32;
 }
 
 
@@ -1122,4 +1241,26 @@
 
 .findings-section:nth-child(2) {
   border-bottom: 0;
+}
+.distribution-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.summary-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.summary-item strong {
+  font-size: 18px;
+  font-weight: 500;
 }
