@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import LandingPage from "./pages/Landing/LandingPage";
 import AnalysisWorkspace from "./pages/Analysis/AnalysisWorkspace";
@@ -10,7 +11,11 @@ import {
   type QueryResponse,
 } from "./api/query";
 
+import "./index.css";
+
+
 const USE_MOCK_DATA = true;
+
 
 const MOCK_RESULT: QueryResponse = {
   status: "analysis complete",
@@ -65,11 +70,13 @@ const MOCK_RESULT: QueryResponse = {
 };
 
 
-function App() {
+/* =========================================================
+   APP STATE
+   ========================================================= */
 
-  const [currentPage, setCurrentPage] = useState<
-    "landing" | "analysis" | "results" | "layers"
-  >("landing");
+function AppContent() {
+
+  const navigate = useNavigate();
 
   const [result, setResult] =
     useState<QueryResponse | null>(null);
@@ -81,11 +88,9 @@ function App() {
     useState<string | null>(null);
 
 
-  /*
-   * =========================================================
-   * QUERY
-   * =========================================================
-   */
+  /* =======================================================
+     QUERY
+     ======================================================= */
 
   const handleQuery = async (query: string) => {
 
@@ -114,18 +119,22 @@ function App() {
 
         setResult(mockResult);
 
-        setCurrentPage("analysis");
+        navigate("/analysis");
 
         return;
       }
 
+
+      /* ===================================================
+         REAL BACKEND
+         =================================================== */
 
       const response =
         await submitQuery(query);
 
       setResult(response);
 
-      setCurrentPage("analysis");
+      navigate("/analysis");
 
     } catch (err) {
 
@@ -145,34 +154,11 @@ function App() {
   };
 
 
-  /*
-   * =========================================================
-   * NAVIGATION
-   * =========================================================
-   */
+  /* =======================================================
+     LANDING
+     ======================================================= */
 
-  const goToAnalysis = () => {
-    setCurrentPage("analysis");
-  };
-
-
-  const goToResults = () => {
-    setCurrentPage("results");
-  };
-
-
-  const goToLayers = () => {
-    setCurrentPage("layers");
-  };
-
-
-  /*
-   * =========================================================
-   * LANDING
-   * =========================================================
-   */
-
-  if (currentPage === "landing") {
+  const Landing = () => {
 
     return (
       <>
@@ -188,62 +174,127 @@ function App() {
         )}
       </>
     );
-  }
+
+  };
 
 
-  /*
-   * =========================================================
-   * ANALYSIS
-   * =========================================================
-   */
+  /* =======================================================
+     ANALYSIS
+     ======================================================= */
 
-  if (currentPage === "analysis" && result) {
+  const Analysis = () => {
+
+    if (!result) {
+      return <Navigate to="/" replace />;
+    }
 
     return (
       <AnalysisWorkspace
         result={result}
-        onViewDetails={goToResults}
-        onViewLayers={goToLayers}
+        onViewDetails={() => navigate("/results")}
+        onViewLayers={() => navigate("/layers")}
       />
     );
-  }
+
+  };
 
 
-  /*
-   * =========================================================
-   * RESULTS
-   * =========================================================
-   */
+  /* =======================================================
+     RESULTS
+     ======================================================= */
 
-  if (currentPage === "results" && result) {
+  const Results = () => {
+
+    if (!result) {
+      return <Navigate to="/" replace />;
+    }
 
     return (
       <ResultsInsights
         result={result}
-        onBack={goToAnalysis}
+        onBack={() => navigate("/analysis")}
       />
     );
-  }
+
+  };
 
 
-  /*
-   * =========================================================
-   * LAYERS
-   * =========================================================
-   */
+  /* =======================================================
+     LAYERS
+     ======================================================= */
 
-  if (currentPage === "layers" && result) {
+  const Layers = () => {
+
+    if (!result) {
+      return <Navigate to="/" replace />;
+    }
 
     return (
       <LayersVisualization
         result={result}
-        onBack={goToAnalysis}
+        onBack={() => navigate("/analysis")}
       />
     );
-  }
+
+  };
 
 
-  return null;
+  /* =======================================================
+     ROUTES
+     ======================================================= */
+
+  return (
+    <Routes>
+
+      <Route
+        path="/"
+        element={<Landing />}
+      />
+
+      <Route
+        path="/analysis"
+        element={<Analysis />}
+      />
+
+      <Route
+        path="/layers"
+        element={<Layers />}
+      />
+
+      <Route
+        path="/results"
+        element={<Results />}
+      />
+
+      {/* Unknown URL → landing */}
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/"
+            replace
+          />
+        }
+      />
+
+    </Routes>
+  );
+
+}
+
+
+/* =========================================================
+   ROOT
+   ========================================================= */
+
+function App() {
+
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
+
 }
 
 
