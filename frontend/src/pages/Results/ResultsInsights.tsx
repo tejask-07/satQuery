@@ -2,9 +2,10 @@ import "./ResultsInsights.css";
 
 interface ResultsInsightsProps {
   result?: any;
+  onBack: () => void;
 }
 
-function ResultsInsights({ result }: ResultsInsightsProps) {
+function ResultsInsights({ result , onBack }: ResultsInsightsProps) {
   const statistics = result?.statistics ?? {};
 
   const confidence =
@@ -26,9 +27,8 @@ function ResultsInsights({ result }: ResultsInsightsProps) {
           ===================================================== */}
 
       <header className="results-page-header">
-        <div className="results-page-number">
-          04.
-        </div>
+        <button type="button" className="results-back-button" onClick={onBack}>← ANALYSIS</button>
+        <div className="results-page-number">04.</div>
 
         <h1>
           RESULTS &amp; INSIGHTS

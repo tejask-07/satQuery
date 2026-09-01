@@ -220,6 +220,7 @@ function App() {
     return (
       <ResultsInsights
         result={result}
+        onBack={goToAnalysis}
       />
     );
   }

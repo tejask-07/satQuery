@@ -811,3 +811,29 @@
       repeat(2, minmax(0, 1fr));
   }
 }
+
+.results-back-button {
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: #5f5b54;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  letter-spacing: 0.3px;
+
+  cursor: pointer;
+}
+
+.results-back-button:hover {
+  color: #11110f;
+}
