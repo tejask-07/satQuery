@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app import config
 from app.api.routes_query import router as query_router
 from app.api.routes_analysis import router as analysis_router
+from app.api.routes_benchmark import router as benchmark_router
 
 
 app = FastAPI(
@@ -89,6 +90,7 @@ app.add_middleware(
 
 app.include_router(query_router)
 app.include_router(analysis_router)
+app.include_router(benchmark_router)
 
 
 # ============================================================

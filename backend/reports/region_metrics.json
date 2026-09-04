@@ -1,0 +1,45 @@
+{
+  "benchmark_title": "VALIDATED MULTI-SCENE BENCHMARK",
+  "iou_threshold_used": 0.3,
+  "min_mmu_pixels": 4,
+  "region_metrics": [
+    {
+      "example_id": "BENCH-VIE-WORLDCOVER-TRAIN-01",
+      "total_gt_regions": 56,
+      "total_pred_regions": 0,
+      "matched_gt_regions": 0,
+      "matched_pred_regions": 0,
+      "overlapping_gt_regions": 0,
+      "detection_rate": 0.0,
+      "false_positive_regions": 0,
+      "false_negative_regions": 56,
+      "region_precision": 0.0,
+      "region_recall": 0.0,
+      "region_f1": 0.0,
+      "mean_region_iou": 0.0,
+      "median_region_iou": 0.0,
+      "centroid_distance_mean_px": 0.0,
+      "centroid_distance_mean_m": 0.0,
+      "area_absolute_error_mean_m2": 0.0
+    },
+    {
+      "example_id": "BENCH-MUM-WORLDCOVER-VAL-01",
+      "total_gt_regions": 2997,
+      "total_pred_regions": 1,
+      "matched_gt_regions": 0,
+      "matched_pred_regions": 0,
+      "overlapping_gt_regions": 0,
+      "detection_rate": 0.0,
+      "false_positive_regions": 1,
+      "false_negative_regions": 2997,
+      "region_precision": 0.0,
+      "region_recall": 0.0,
+      "region_f1": 0.0,
+      "mean_region_iou": 0.0,
+      "median_region_iou": 0.0,
+      "centroid_distance_mean_px": 0.0,
+      "centroid_distance_mean_m": 0.0,
+      "area_absolute_error_mean_m2": 0.0
+    }
+  ]
+}

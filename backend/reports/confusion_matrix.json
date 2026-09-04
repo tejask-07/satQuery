@@ -1,0 +1,99 @@
+{
+  "benchmark_title": "VALIDATED MULTI-SCENE BENCHMARK",
+  "confusion_matrix": [
+    [
+      269783,
+      0,
+      0,
+      10,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      28365,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      14822,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      7851,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      23401,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      602,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      263,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      24903,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "class_names": {
+    "0": "no_change",
+    "1": "urban_expansion",
+    "2": "urban_reduction",
+    "3": "vegetation_loss",
+    "4": "vegetation_gain",
+    "5": "water_loss",
+    "6": "water_gain",
+    "7": "ambiguous",
+    "8": "invalid"
+  },
+  "total_evaluated_pixels": 370000,
+  "total_ignored_pixels": 0,
+  "note": "Rows=true class, Cols=predicted class. Class 8 (invalid/nodata) excluded from evaluation."
+}

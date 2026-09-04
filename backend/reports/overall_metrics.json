@@ -1,0 +1,50 @@
+{
+  "benchmark_title": "VALIDATED MULTI-SCENE BENCHMARK",
+  "benchmark_date": "2026-09-04 20:19:27",
+  "benchmark_version": "1.1.0",
+  "benchmark_status": "PHASE_9C_MULTI_SCENE_BENCHMARK_COMPLETE",
+  "stage": "STAGE_B_PARTIAL_NUMERICAL_EVALUATION",
+  "status_message": "VALIDATED MULTI-SCENE BENCHMARK complete: 2 validated examples evaluated across 2 distinct regions against real ESA WorldCover derived reference rasters.",
+  "ml_status": "DEFERRED",
+  "candidate_examples": 10,
+  "total_candidate_scenes": 10,
+  "materialized_examples": 2,
+  "materialized_labeled_scenes": 2,
+  "validated_examples": 2,
+  "evaluated_examples": 2,
+  "evaluated_pixel_count": 370000,
+  "ignored_pixel_count": 0,
+  "splits_evaluated": [
+    "TRAIN",
+    "VALIDATION"
+  ],
+  "splits_pending": [
+    "TEST",
+    "TRAIN",
+    "VALIDATION"
+  ],
+  "disclaimer": "VALIDATED MULTI-SCENE BENCHMARK: Evaluated N=2 scene pairs across 2 countries (Austria, India) against real ESA WorldCover derived reference rasters. Reference masks are designated strictly as derived_reference, not absolute ground truth.",
+  "reference_label_caveat": "ESA WorldCover 2020 (v100) and 2021 (v200) use different classification algorithms. Observed differences may include algorithm/version effects in addition to physical land-cover change. Reference masks are designated strictly as derived_reference, not absolute ground truth.",
+  "deterministic_satquery": {
+    "overall_accuracy": 0.7291,
+    "balanced_accuracy": 0.125,
+    "macro_precision": 0.0911,
+    "macro_recall": 0.125,
+    "macro_f1": 0.1054,
+    "macro_iou": 0.0911,
+    "classes_evaluated_count": 8,
+    "label_type": "derived_reference"
+  },
+  "baselines_comparison": {
+    "no_change_f1": 0.1206,
+    "deterministic_satquery_f1": 0.1054
+  },
+  "sample_size_warning": "VALIDATED MULTI-SCENE BENCHMARK: Evaluated N=2 scene pairs across 2 countries (Austria, India) against real ESA WorldCover derived reference rasters. Reference masks are designated strictly as derived_reference, not absolute ground truth.",
+  "oscd_rejection": {
+    "dataset": "OSCD (Onera Satellite Change Detection)",
+    "status": "REJECTED_NO_SCENE_MATCH",
+    "rejection_reason": "OSCD covers 24 cities (Abu Dhabi, Aguas Claras, Beihai, Beirut, Bercy, Bordeaux, Brasilia, Chongqing, Cupertino, Dubai, Hong Kong, Las Vegas, Milano, Montpellier, Mumbai, Nantes, Norcia, Paris, Pisa, Rennes, Rio, Saclay E/W, Valencia). None match our AOIs (Vienna T33UXP, Mumbai T43QCA, Queensland T56HLH).",
+    "assessed_by": "SatQuery Phase 9C label_ingestion.py",
+    "assessment_date": "2026-09-04"
+  }
+}

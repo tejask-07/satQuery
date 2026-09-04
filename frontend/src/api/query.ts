@@ -28,7 +28,12 @@ export interface QueryResponse {
     after?: string;
     change_map?: string;
   };
+  layer_package?: Record<string, any>;
   evidence_package?: Record<string, unknown>;
+  interpretation?: Record<string, any>;
+  spatial_analysis?: Record<string, any>;
+  temporal_analysis?: Record<string, any>;
+  calibration?: Record<string, any>;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
@@ -75,8 +80,18 @@ export async function submitQuery(
         "Query request timed out after 90 seconds. The satellite imagery search or index calculation is taking longer than expected."
       );
     }
-    throw err;
+    throw new Error(err.message || "Failed to process query");
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+export async function fetchBenchmarkSummary(): Promise<Record<string, any>> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/benchmark/summary`);
+    if (!response.ok) return {};
+    return await response.json();
+  } catch {
+    return {};
   }
 }

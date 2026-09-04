@@ -1,0 +1,51 @@
+{
+  "benchmark_title": "VALIDATED MULTI-SCENE BENCHMARK",
+  "per_scene_results": [
+    {
+      "example_id": "BENCH-VIE-WORLDCOVER-TRAIN-01",
+      "split": "TRAIN",
+      "region_id": "vienna_central_worldcover",
+      "target_class": "urban_expansion",
+      "label_type": "derived_reference",
+      "evaluated_pixels": 10000,
+      "ignored_pixels": 0,
+      "macro_precision": 0.1302,
+      "macro_recall": 0.1429,
+      "macro_f1": 0.1362,
+      "macro_iou": 0.1302,
+      "no_change_baseline_f1": 0.1362,
+      "satquery_vs_no_change_improvement": 0.0,
+      "region_precision": 0.0,
+      "region_recall": 0.0,
+      "region_f1": 0.0,
+      "overlapping_gt_regions": 0,
+      "detection_rate": 0.0,
+      "mean_centroid_error_px": 0.0,
+      "mean_area_error_m2": 0.0,
+      "runtime_sec": 0.075
+    },
+    {
+      "example_id": "BENCH-MUM-WORLDCOVER-VAL-01",
+      "split": "VALIDATION",
+      "region_id": "mumbai_periurban_worldcover",
+      "target_class": "urban_expansion",
+      "label_type": "derived_reference",
+      "evaluated_pixels": 360000,
+      "ignored_pixels": 0,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905,
+      "no_change_baseline_f1": 0.105,
+      "satquery_vs_no_change_improvement": 0.0,
+      "region_precision": 0.0,
+      "region_recall": 0.0,
+      "region_f1": 0.0,
+      "overlapping_gt_regions": 0,
+      "detection_rate": 0.0,
+      "mean_centroid_error_px": 0.0,
+      "mean_area_error_m2": 0.0,
+      "runtime_sec": 4.325
+    }
+  ]
+}

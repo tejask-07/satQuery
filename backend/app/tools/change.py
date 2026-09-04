@@ -9,6 +9,7 @@ def detect_change(
     after: np.ndarray,
     threshold: float = 0.01,
     output_path: str | None = None,
+    valid_mask: np.ndarray | None = None,
 ) -> dict:
     """
     Detect temporal change between two raster/index arrays.
@@ -47,14 +48,20 @@ def detect_change(
     # Valid pixels
     # --------------------------------------------------------
 
-    valid_mask = (
+    finite_mask = (
         np.isfinite(before)
         & np.isfinite(after)
     )
 
+    if valid_mask is not None:
+        valid_mask = finite_mask & np.asarray(valid_mask, dtype=bool)
+    else:
+        valid_mask = finite_mask
+
     valid_pixels = int(
         np.sum(valid_mask)
     )
+
 
     # --------------------------------------------------------
     # Signed change raster

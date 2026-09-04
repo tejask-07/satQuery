@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter
@@ -10,6 +11,15 @@ from app.agent.executor import (
 from app.agent.planner import create_execution_plan
 from app.schemas.analysis import AnalysisResult
 from app.schemas.query import QueryPlan, QueryRequest
+from app.evidence.multi_index import calculate_multi_index_evidence
+from app.evidence.fusion import fuse_evidence_and_classify_candidates
+from app.evidence.interpretation import generate_structured_interpretation
+from app.evidence.spatial import extract_spatial_candidate_regions
+from app.evidence.temporal import (
+    build_temporal_analysis_package,
+    TemporalObservation,
+)
+from app.evidence.calibration import build_calibration_package
 
 
 def _safe_vis_url(filename: Optional[str]) -> Optional[str]:
@@ -46,6 +56,9 @@ router = APIRouter(
 )
 
 
+from app.agent.parser import parse_query
+
+
 # ============================================================
 # QUERY PLANNER
 # ============================================================
@@ -54,207 +67,10 @@ def build_query_plan(
     request: QueryRequest,
 ) -> QueryPlan:
     """
-    Convert natural-language query into a QueryPlan.
-
-    Lightweight rule-based planner for the MVP.
+    Convert natural-language query into a QueryPlan using the Phase 1 structured analysis planner.
     """
+    return parse_query(request)
 
-    query_str = request.query
-    parsed_aoi = None
-    import re
-    aoi_match = re.search(r'\[\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\]', query_str)
-    if aoi_match:
-        v1, v2, v3, v4 = [float(x) for x in aoi_match.groups()]
-        minLon = min(v1, v3)
-        maxLon = max(v1, v3)
-        minLat = min(v2, v4)
-        maxLat = max(v2, v4)
-        parsed_aoi = {
-            "type": "Polygon",
-            "coordinates": [[
-                [minLon, minLat],
-                [maxLon, minLat],
-                [maxLon, maxLat],
-                [minLon, maxLat],
-                [minLon, minLat]
-            ]]
-        }
-        query_str = query_str[:aoi_match.start()] + query_str[aoi_match.end():]
-        query_str = re.sub(r' for\s+aoi\b', '', query_str, flags=re.IGNORECASE).strip()
-        query_str = re.sub(r'\baoi\b', '', query_str, flags=re.IGNORECASE).strip()
-
-    final_aoi = request.aoi if request.aoi else parsed_aoi
-    query = query_str.lower()
-
-    # --------------------------------------------------------
-    # Extract years.
-    # --------------------------------------------------------
-
-    years = re.findall(
-        r"\b(?:19|20)\d{2}\b",
-        query,
-    )
-
-    if len(years) >= 2:
-        time_start = years[0]
-        time_end = years[1]
-    elif len(years) == 1:
-        time_start = years[0]
-        time_end = years[0]
-    else:
-        time_start = "2021"
-        time_end = "2025"
-
-    is_change_query = any(
-        word in query
-        for word in [
-            "change",
-            "compare",
-            "between",
-            "difference",
-            "decrease",
-            "increase",
-            "loss",
-            "gain",
-        ]
-    )
-
-    # --------------------------------------------------------
-    # Single index tasks
-    # --------------------------------------------------------
-
-    if (
-        "ndvi" in query
-        and not is_change_query
-        and ("single" in query or "calculate" in query or len(years) <= 1)
-    ):
-        task = "vegetation_index"
-        target = "vegetation"
-        metric = "ndvi"
-
-    elif (
-        "ndwi" in query
-        and not is_change_query
-        and ("single" in query or "calculate" in query or len(years) <= 1)
-    ):
-        task = "water_index"
-        target = "water"
-        metric = "ndwi"
-
-    elif (
-        "ndbi" in query
-        and not is_change_query
-        and ("single" in query or "calculate" in query or len(years) <= 1)
-    ):
-        task = "urban_index"
-        target = "urban"
-        metric = "ndbi"
-
-    # --------------------------------------------------------
-    # Vegetation.
-    # --------------------------------------------------------
-
-    elif any(
-        word in query
-        for word in [
-            "vegetation",
-            "ndvi",
-            "forest",
-            "crop",
-        ]
-    ):
-        task = "change_detection"
-        target = "vegetation"
-        metric = "ndvi"
-
-    # --------------------------------------------------------
-    # Water.
-    # --------------------------------------------------------
-
-    elif any(
-        word in query
-        for word in [
-            "water",
-            "lake",
-            "river",
-            "ndwi",
-        ]
-    ):
-        task = "water_change"
-        target = "water"
-        metric = "ndwi"
-
-    # --------------------------------------------------------
-    # Urban.
-    # --------------------------------------------------------
-
-    elif any(
-        word in query
-        for word in [
-            "urban",
-            "city",
-            "building",
-            "ndbi",
-        ]
-    ):
-        task = "urban_change"
-        target = "urban"
-        metric = "ndbi"
-
-    # --------------------------------------------------------
-    # Image comparison.
-    # --------------------------------------------------------
-
-    elif any(
-        word in query
-        for word in [
-            "compare",
-            "comparison",
-        ]
-    ):
-        task = "image_comparison"
-        target = None
-        metric = None
-
-    # --------------------------------------------------------
-    # Image search.
-    # --------------------------------------------------------
-
-    else:
-        task = "image_search"
-        target = None
-        metric = None
-
-    # --------------------------------------------------------
-    # Analysis list.
-    # --------------------------------------------------------
-
-    analysis = []
-
-    if metric:
-        analysis.append(metric)
-
-    if task != "image_search":
-        analysis.append(
-            "change_detection"
-        )
-
-    return QueryPlan(
-        task=task,
-        target=target,
-        time_start=time_start,
-        time_end=time_end,
-        modalities=["optical"],
-        metric=metric,
-        direction="unknown",
-        analysis=analysis,
-        output=[
-            "map",
-            "statistics",
-            "explanation",
-        ],
-        aoi=final_aoi,
-    )
 
 
 # ============================================================
@@ -781,8 +597,13 @@ def process_query(
     )
 
     # ========================================================
-    # 3. Execute tools
-    # ========================================================
+    # Pass target, metric, task in context so executor tools know primary metric
+    target_metric = (
+        (plan.metric.upper() if plan.metric else None)
+        or ("NDBI" if (plan.target == "urban" or (plan.task and "urban" in plan.task.lower())) else
+            "NDWI" if (plan.target == "water" or (plan.task and "water" in plan.task.lower())) else
+            "NDVI")
+    )
 
     execution_results = execute_plan(
         tools,
@@ -790,6 +611,10 @@ def process_query(
             "time_start": plan.time_start,
             "time_end": plan.time_end,
             "aoi": plan.aoi,
+            "metric": plan.metric or target_metric,
+            "target": plan.target,
+            "task": plan.task,
+            "temporal_mode": getattr(plan, "temporal_mode", "bi_temporal"),
         },
     )
 
@@ -805,47 +630,25 @@ def process_query(
 
     index_result = None
 
-    if "calculate_ndvi" in execution_results:
-
-        index_result = execution_results[
-            "calculate_ndvi"
-        ]
-
+    if f"calculate_{target_metric.lower()}" in execution_results:
+        index_result = execution_results[f"calculate_{target_metric.lower()}"]
+    elif "calculate_ndvi" in execution_results:
+        index_result = execution_results["calculate_ndvi"]
     elif "calculate_ndwi" in execution_results:
-
-        index_result = execution_results[
-            "calculate_ndwi"
-        ]
-
+        index_result = execution_results["calculate_ndwi"]
     elif "calculate_ndbi" in execution_results:
-
-        index_result = execution_results[
-            "calculate_ndbi"
-        ]
+        index_result = execution_results["calculate_ndbi"]
 
     # --------------------------------------------------------
     # Temporal index result
     # --------------------------------------------------------
 
-    temporal_result = None
-
-    if "calculate_temporal_ndvi" in execution_results:
-
-        temporal_result = execution_results[
-            "calculate_temporal_ndvi"
-        ]
-
-    elif "calculate_temporal_ndwi" in execution_results:
-
-        temporal_result = execution_results[
-            "calculate_temporal_ndwi"
-        ]
-
-    elif "calculate_temporal_ndbi" in execution_results:
-
-        temporal_result = execution_results[
-            "calculate_temporal_ndbi"
-        ]
+    temporal_result = (
+        execution_results.get(f"calculate_temporal_{target_metric.lower()}")
+        or execution_results.get("calculate_temporal_ndvi")
+        or execution_results.get("calculate_temporal_ndwi")
+        or execution_results.get("calculate_temporal_ndbi")
+    )
 
     # ========================================================
     # 5. Extract index statistics
@@ -967,6 +770,8 @@ def process_query(
 
     if change_result:
 
+        statistics["metric"] = change_result.get("metric") or target_metric
+
         statistics["mean_before"] = (
             change_result.get(
                 "mean_before"
@@ -1044,6 +849,45 @@ def process_query(
                 "threshold"
             )
         )
+
+    # --------------------------------------------------------
+    # Extract statistics for all temporal indices
+    # --------------------------------------------------------
+    indices_stats = {}
+    for idx_key, tool_key in [
+        ("NDVI", "calculate_temporal_ndvi"),
+        ("NDWI", "calculate_temporal_ndwi"),
+        ("NDBI", "calculate_temporal_ndbi"),
+    ]:
+        t_res = execution_results.get(tool_key)
+        if t_res:
+            ik = idx_key.lower()
+            istat = {
+                "metric": idx_key,
+                "mean_before": t_res.get(f"mean_{ik}_before"),
+                "mean_after": t_res.get(f"mean_{ik}_after"),
+                "mean_change": t_res.get(f"mean_{ik}_change"),
+                "min_before": t_res.get(f"min_{ik}_before"),
+                "max_before": t_res.get(f"max_{ik}_before"),
+                "min_after": t_res.get(f"min_{ik}_after"),
+                "max_after": t_res.get(f"max_{ik}_after"),
+                "valid_pixels": t_res.get("valid_pixels"),
+                "total_pixels": t_res.get("total_pixels"),
+            }
+            if change_result and change_result.get("all_changes"):
+                chg = change_result["all_changes"].get(idx_key) or change_result["all_changes"].get(idx_key.lower())
+                if chg:
+                    istat.update({
+                        "change_ratio": chg.get("change_ratio"),
+                        "changed_pixels": chg.get("changed_pixels"),
+                        "increased_pixels": chg.get("increased_pixels"),
+                        "decreased_pixels": chg.get("decreased_pixels"),
+                        "change_type": chg.get("change_type"),
+                        "threshold": chg.get("threshold"),
+                    })
+            indices_stats[idx_key] = istat
+    if indices_stats:
+        statistics["indices"] = indices_stats
 
     # ========================================================
     # 7. Build P2 explanation
@@ -1155,40 +999,44 @@ def process_query(
             except Exception:
                 pass
 
-        # Layer metadata
+        metric_name = str(statistics.get("metric") or plan.metric or target_metric).upper()
+        # Primary change detection layer
         layers.append(
             {
+                "id": "change_continuous",
+                "category": "change",
                 "type": "change_detection",
-                "name": (
-                    f"{plan.target or 'Image'} "
-                    f"change map"
-                ),
-                "change_ratio": (
-                    change_result.get(
-                        "change_ratio"
-                    )
-                ),
-                "regions_detected": (
-                    change_result.get(
-                        "regions_detected"
-                    )
-                ),
-                "changed_pixels": (
-                    change_result.get(
-                        "changed_pixels"
-                    )
-                ),
-                "visualization_url": (
-                    visualization_url
-                ),
-                "classified_visualization_url": (
-                    classified_visualization_url
-                ),
-                "bounds": (
-                    visualization_bounds
-                ),
+                "name": f"{metric_name} Change",
+                "classified_name": f"{metric_name} Change Categories",
+                "change_ratio": change_result.get("change_ratio"),
+                "regions_detected": change_result.get("regions_detected"),
+                "changed_pixels": change_result.get("changed_pixels"),
+                "visualization_url": visualization_url,
+                "classified_visualization_url": classified_visualization_url,
+                "bounds": visualization_bounds,
             }
         )
+
+        # Specific index change layers: change_ndvi, change_ndwi, change_ndbi
+        all_chgs = change_result.get("all_changes", {})
+        for idx_k in ["NDVI", "NDWI", "NDBI"]:
+            c_info = all_chgs.get(idx_k) or all_chgs.get(idx_k.lower())
+            if c_info and c_info.get("visualization"):
+                c_vis = c_info["visualization"]
+                layers.append({
+                    "id": f"change_{idx_k.lower()}",
+                    "category": "change",
+                    "type": "change_detection",
+                    "metric": idx_k,
+                    "name": f"{idx_k} Change",
+                    "classified_name": f"{idx_k} Change Categories",
+                    "change_ratio": c_info.get("change_ratio"),
+                    "regions_detected": c_info.get("regions_detected"),
+                    "changed_pixels": c_info.get("changed_pixels"),
+                    "visualization_url": _safe_vis_url(c_vis.get("filename")),
+                    "classified_visualization_url": _safe_vis_url(c_vis.get("classified_filename")),
+                    "bounds": c_vis.get("bounds") or visualization_bounds,
+                })
 
     elif index_result:
 
@@ -1220,10 +1068,13 @@ def process_query(
             except Exception:
                 pass
 
+        metric_name = str(statistics.get("metric") or plan.metric or target_metric).upper()
         layers.append(
             {
+                "id": "index_primary",
+                "category": "analysis",
                 "type": "index_map",
-                "name": f"{statistics.get('metric') or 'Index'} map",
+                "name": f"{metric_name} Map",
                 "mean": statistics.get("mean"),
                 "min_value": statistics.get("min_value"),
                 "max_value": statistics.get("max_value"),
@@ -1234,6 +1085,227 @@ def process_query(
                 "bounds": visualization_bounds,
             }
         )
+
+    # --------------------------------------------------------
+    # Collect additional base, index, and quality layers
+    # --------------------------------------------------------
+    images = []
+    vis_b = {}
+    vis_a = {}
+    if imagery_result and imagery_result.get("images"):
+        images = imagery_result["images"]
+        if len(images) > 0 and images[0].get("visualizations"):
+            vis_b = images[0]["visualizations"]
+            date_b = images[0].get("date") or plan.time_start or "Before"
+            if vis_b.get("true_color"):
+                layers.append({
+                    "id": "true_color_before",
+                    "category": "base",
+                    "type": "true_color",
+                    "name": f"True Color ({date_b})",
+                    "date": date_b,
+                    "visualization_url": _safe_vis_url(vis_b["true_color"].get("filename")),
+                    "bounds": vis_b["true_color"].get("bounds") or visualization_bounds,
+                    "metadata": images[0].get("metadata"),
+                })
+            if vis_b.get("false_color"):
+                layers.append({
+                    "id": "false_color_before",
+                    "category": "base",
+                    "type": "false_color",
+                    "name": f"False Color NIR ({date_b})",
+                    "date": date_b,
+                    "visualization_url": _safe_vis_url(vis_b["false_color"].get("filename")),
+                    "bounds": vis_b["false_color"].get("bounds") or visualization_bounds,
+                })
+            if vis_b.get("quality_mask"):
+                layers.append({
+                    "id": "quality_mask_before",
+                    "category": "quality",
+                    "type": "quality_mask",
+                    "name": f"Quality Mask ({date_b})",
+                    "date": date_b,
+                    "visualization_url": _safe_vis_url(vis_b["quality_mask"].get("filename")),
+                    "bounds": vis_b["quality_mask"].get("bounds") or visualization_bounds,
+                })
+        if len(images) > 1 and images[1].get("visualizations"):
+            vis_a = images[1]["visualizations"]
+            date_a = images[1].get("date") or plan.time_end or "After"
+            if vis_a.get("true_color"):
+                layers.append({
+                    "id": "true_color_after",
+                    "category": "base",
+                    "type": "true_color",
+                    "name": f"True Color ({date_a})",
+                    "date": date_a,
+                    "visualization_url": _safe_vis_url(vis_a["true_color"].get("filename")),
+                    "bounds": vis_a["true_color"].get("bounds") or visualization_bounds,
+                    "metadata": images[1].get("metadata"),
+                })
+            if vis_a.get("false_color"):
+                layers.append({
+                    "id": "false_color_after",
+                    "category": "base",
+                    "type": "false_color",
+                    "name": f"False Color NIR ({date_a})",
+                    "date": date_a,
+                    "visualization_url": _safe_vis_url(vis_a["false_color"].get("filename")),
+                    "bounds": vis_a["false_color"].get("bounds") or visualization_bounds,
+                })
+            if vis_a.get("quality_mask"):
+                layers.append({
+                    "id": "quality_mask_after",
+                    "category": "quality",
+                    "type": "quality_mask",
+                    "name": f"Quality Mask ({date_a})",
+                    "date": date_a,
+                    "visualization_url": _safe_vis_url(vis_a["quality_mask"].get("filename")),
+                    "bounds": vis_a["quality_mask"].get("bounds") or visualization_bounds,
+                })
+
+    date_b = plan.time_start or "Before"
+    date_a = plan.time_end or "After"
+    primary_idx = str(statistics.get("metric") or plan.metric or target_metric).upper()
+
+    for idx_key, tool_key in [
+        ("NDVI", "calculate_temporal_ndvi"),
+        ("NDWI", "calculate_temporal_ndwi"),
+        ("NDBI", "calculate_temporal_ndbi"),
+    ]:
+        t_res = execution_results.get(tool_key)
+        if t_res and t_res.get("visualizations"):
+            t_vis = t_res["visualizations"]
+            b_vis = t_vis.get("before")
+            a_vis = t_vis.get("after")
+            b_url = _safe_vis_url(b_vis.get("filename")) if b_vis else None
+            a_url = _safe_vis_url(a_vis.get("filename")) if a_vis else None
+            b_bounds = (b_vis.get("bounds") if b_vis else None) or visualization_bounds
+            a_bounds = (a_vis.get("bounds") if a_vis else None) or visualization_bounds
+
+            if b_url:
+                layers.append({
+                    "id": f"{idx_key.lower()}_before",
+                    "category": "analysis",
+                    "type": "index_map",
+                    "metric": idx_key,
+                    "name": f"{idx_key} ({date_b})",
+                    "visualization_url": b_url,
+                    "bounds": b_bounds,
+                })
+            if a_url:
+                layers.append({
+                    "id": f"{idx_key.lower()}_after",
+                    "category": "analysis",
+                    "type": "index_map",
+                    "metric": idx_key,
+                    "name": f"{idx_key} ({date_a})",
+                    "visualization_url": a_url,
+                    "bounds": a_bounds,
+                })
+
+            if idx_key == primary_idx:
+                if b_url:
+                    layers.append({
+                        "id": "index_before",
+                        "category": "analysis",
+                        "type": "index_map",
+                        "name": f"{idx_key} ({date_b})",
+                        "visualization_url": b_url,
+                        "bounds": b_bounds,
+                    })
+                if a_url:
+                    layers.append({
+                        "id": "index_after",
+                        "category": "analysis",
+                        "type": "index_map",
+                        "name": f"{idx_key} ({date_a})",
+                        "visualization_url": a_url,
+                        "bounds": a_bounds,
+                    })
+
+    # ========================================================
+    # 9b. Build layer_package
+    # ========================================================
+    t_ndvi = execution_results.get("calculate_temporal_ndvi", {}).get("visualizations", {})
+    t_ndwi = execution_results.get("calculate_temporal_ndwi", {}).get("visualizations", {})
+    t_ndbi = execution_results.get("calculate_temporal_ndbi", {}).get("visualizations", {})
+    all_chg = change_result.get("all_changes", {}) if change_result else {}
+
+    layer_package = {
+        "before": {
+            "true_color": {
+                "url": _safe_vis_url(vis_b.get("true_color", {}).get("filename")) if vis_b.get("true_color") else None,
+                "bounds": vis_b.get("true_color", {}).get("bounds") or visualization_bounds if vis_b.get("true_color") else visualization_bounds,
+            },
+            "false_color": {
+                "url": _safe_vis_url(vis_b.get("false_color", {}).get("filename")) if vis_b.get("false_color") else None,
+                "bounds": vis_b.get("false_color", {}).get("bounds") or visualization_bounds if vis_b.get("false_color") else visualization_bounds,
+            },
+            "ndvi": {
+                "url": _safe_vis_url(t_ndvi.get("before", {}).get("filename")) if t_ndvi.get("before") else None,
+                "bounds": t_ndvi.get("before", {}).get("bounds") or visualization_bounds if t_ndvi.get("before") else visualization_bounds,
+            },
+            "ndwi": {
+                "url": _safe_vis_url(t_ndwi.get("before", {}).get("filename")) if t_ndwi.get("before") else None,
+                "bounds": t_ndwi.get("before", {}).get("bounds") or visualization_bounds if t_ndwi.get("before") else visualization_bounds,
+            },
+            "ndbi": {
+                "url": _safe_vis_url(t_ndbi.get("before", {}).get("filename")) if t_ndbi.get("before") else None,
+                "bounds": t_ndbi.get("before", {}).get("bounds") or visualization_bounds if t_ndbi.get("before") else visualization_bounds,
+            },
+        },
+        "after": {
+            "true_color": {
+                "url": _safe_vis_url(vis_a.get("true_color", {}).get("filename")) if vis_a.get("true_color") else None,
+                "bounds": vis_a.get("true_color", {}).get("bounds") or visualization_bounds if vis_a.get("true_color") else visualization_bounds,
+            },
+            "false_color": {
+                "url": _safe_vis_url(vis_a.get("false_color", {}).get("filename")) if vis_a.get("false_color") else None,
+                "bounds": vis_a.get("false_color", {}).get("bounds") or visualization_bounds if vis_a.get("false_color") else visualization_bounds,
+            },
+            "ndvi": {
+                "url": _safe_vis_url(t_ndvi.get("after", {}).get("filename")) if t_ndvi.get("after") else None,
+                "bounds": t_ndvi.get("after", {}).get("bounds") or visualization_bounds if t_ndvi.get("after") else visualization_bounds,
+            },
+            "ndwi": {
+                "url": _safe_vis_url(t_ndwi.get("after", {}).get("filename")) if t_ndwi.get("after") else None,
+                "bounds": t_ndwi.get("after", {}).get("bounds") or visualization_bounds if t_ndwi.get("after") else visualization_bounds,
+            },
+            "ndbi": {
+                "url": _safe_vis_url(t_ndbi.get("after", {}).get("filename")) if t_ndbi.get("after") else None,
+                "bounds": t_ndbi.get("after", {}).get("bounds") or visualization_bounds if t_ndbi.get("after") else visualization_bounds,
+            },
+        },
+        "change": {
+            "delta_ndvi": {
+                "url": _safe_vis_url((all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("visualization", {}).get("filename")),
+                "classified_url": _safe_vis_url((all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("visualization", {}).get("classified_filename")),
+                "bounds": (all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("bounds") or visualization_bounds,
+            },
+            "delta_ndwi": {
+                "url": _safe_vis_url((all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("visualization", {}).get("filename")),
+                "classified_url": _safe_vis_url((all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("visualization", {}).get("classified_filename")),
+                "bounds": (all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("bounds") or visualization_bounds,
+            },
+            "delta_ndbi": {
+                "url": _safe_vis_url((all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("visualization", {}).get("filename")),
+                "classified_url": _safe_vis_url((all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("visualization", {}).get("classified_filename")),
+                "bounds": (all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("bounds") or visualization_bounds,
+            },
+        },
+        "quality": {
+            "mask_before": {
+                "url": _safe_vis_url(vis_b.get("quality_mask", {}).get("filename")) if vis_b.get("quality_mask") else None,
+                "bounds": vis_b.get("quality_mask", {}).get("bounds") or visualization_bounds if vis_b.get("quality_mask") else visualization_bounds,
+                "metadata": images[0].get("metadata") if len(images) > 0 else None,
+            },
+            "mask_after": {
+                "url": _safe_vis_url(vis_a.get("quality_mask", {}).get("filename")) if vis_a.get("quality_mask") else None,
+                "bounds": vis_a.get("quality_mask", {}).get("bounds") or visualization_bounds if vis_a.get("quality_mask") else visualization_bounds,
+                "metadata": images[1].get("metadata") if len(images) > 1 else None,
+            },
+        }
+    }
 
     # ========================================================
     # 10. Build execution trace
@@ -1262,17 +1334,215 @@ def process_query(
     )
 
     # ========================================================
+    # 10b. Build Multi-Index Evidence (Phase 5A)
+    # ========================================================
+    multi_index_evidence = calculate_multi_index_evidence(
+        target=plan.target,
+        task=plan.task,
+        execution_results=execution_results,
+        imagery_result=imagery_result,
+        change_result=change_result,
+    )
+    statistics["evidence"] = multi_index_evidence
+    execution_trace.append("Multi-index evidence calculated")
+
+    # ========================================================
+    # 10c. Evidence Fusion & Candidate Classification (Phase 5B)
+    # ========================================================
+    candidate_package = fuse_evidence_and_classify_candidates(
+        target=plan.target,
+        task=plan.task,
+        multi_index_evidence=multi_index_evidence,
+        execution_results=execution_results,
+        imagery_result=imagery_result,
+        change_result=change_result,
+    )
+    candidates = candidate_package.get("candidates", [])
+    statistics["candidates"] = candidates
+    statistics["fusion_statistics"] = candidate_package.get("statistics", {})
+    execution_trace.append("Phase 5B Evidence fusion and candidate classification completed")
+
+    # ========================================================
+    # 10d. Spatial Reasoning & Candidate Region Clustering (Phase 6)
+    # ========================================================
+    cand_raster_path = candidate_package.get("candidate_raster")
+    spatial_analysis = extract_spatial_candidate_regions(
+        candidate_raster_path=cand_raster_path,
+        target=plan.target,
+        task=plan.task,
+        execution_results=execution_results,
+        imagery_result=imagery_result,
+        aoi_bounds=visualization_bounds,
+    )
+    statistics["spatial_analysis"] = spatial_analysis
+    execution_trace.append("Phase 6 Spatial candidate clustering completed")
+
+    # Expose spatial layers in layer_package
+    if spatial_analysis.get("available"):
+        sp_rasters = spatial_analysis.get("rasters", {})
+        filt_r = sp_rasters.get("filtered_candidate_raster")
+        lbl_r = sp_rasters.get("labeled_regions_raster")
+        layer_package["spatial"] = {
+            "raw_candidate_url": _safe_vis_url(Path(cand_raster_path).name) if cand_raster_path else None,
+            "filtered_candidate_url": _safe_vis_url(Path(filt_r).name) if filt_r else None,
+            "labeled_regions_url": _safe_vis_url(Path(lbl_r).name) if lbl_r else None,
+            "bounds": visualization_bounds,
+            "region_count": spatial_analysis.get("region_count", 0),
+            "total_candidate_area_hectares": spatial_analysis.get("total_candidate_area_hectares", 0.0),
+            "geojson": spatial_analysis.get("geojson"),
+        }
+
+    # ========================================================
+    # 10e. Temporal Reasoning & Multi-Observation Analysis (Phase 7)
+    # ========================================================
+    temporal_obs: list[TemporalObservation] = []
+    if imagery_result and imagery_result.get("temporal_observations"):
+        for t_dict in imagery_result["temporal_observations"]:
+            temporal_obs.append(TemporalObservation(
+                observation_id=t_dict.get("observation_id", ""),
+                scene_id=t_dict.get("scene_id", ""),
+                datetime_iso=t_dict.get("datetime_iso", ""),
+                date=t_dict.get("date", ""),
+                year=int(t_dict.get("year", 2021)),
+                day_of_year=int(t_dict.get("day_of_year", 182)),
+                cloud_cover=float(t_dict.get("cloud_cover", 0.0)),
+                coverage_fraction=float(t_dict.get("coverage_fraction", 1.0)),
+                valid_fraction=float(t_dict.get("valid_fraction", 1.0)),
+                quality_state=t_dict.get("quality_state", "high"),
+                acquisition_score=float(t_dict.get("acquisition_score", 1.0)),
+                provenance=t_dict.get("provenance", {}),
+                ndvi_mean=t_dict.get("ndvi_mean"),
+                ndvi_median=t_dict.get("ndvi_median"),
+                ndvi_std=t_dict.get("ndvi_std"),
+                ndwi_mean=t_dict.get("ndwi_mean"),
+                ndwi_median=t_dict.get("ndwi_median"),
+                ndwi_std=t_dict.get("ndwi_std"),
+                ndbi_mean=t_dict.get("ndbi_mean"),
+                ndbi_median=t_dict.get("ndbi_median"),
+                ndbi_std=t_dict.get("ndbi_std"),
+                band_paths=t_dict.get("band_paths", {}),
+            ))
+    elif imagery_result and imagery_result.get("images") and len(imagery_result["images"]) >= 2:
+        imgs = imagery_result["images"]
+        for idx, img in enumerate([imgs[0], imgs[-1]]):
+            i_date = img.get("date") or (plan.time_start if idx == 0 else plan.time_end) or "2021-06-15"
+            i_dt_iso = f"{i_date}T00:00:00Z"
+            i_yr = int(i_date[:4]) if len(i_date) >= 4 and i_date[:4].isdigit() else 2021
+            try:
+                i_doy = datetime.fromisoformat(i_dt_iso.replace("Z", "+00:00")).timetuple().tm_yday
+            except Exception:
+                i_doy = 182
+            q_info = img.get("quality", {})
+            v_pct = float(q_info.get("valid_coverage_percentage") or q_info.get("valid_percentage") or 100.0) / 100.0
+            
+            # Map index means from indices statistics
+            idx_stats = statistics.get("indices", {})
+            ndvi_s = idx_stats.get("NDVI", {})
+            ndwi_s = idx_stats.get("NDWI", {})
+            ndbi_s = idx_stats.get("NDBI", {})
+
+            key_m = "mean_before" if idx == 0 else "mean_after"
+            v_ndvi = ndvi_s.get(key_m) if ndvi_s.get(key_m) is not None else (statistics.get(key_m) if statistics.get("metric") == "NDVI" else None)
+            v_ndwi = ndwi_s.get(key_m) if ndwi_s.get(key_m) is not None else (statistics.get(key_m) if statistics.get("metric") == "NDWI" else None)
+            v_ndbi = ndbi_s.get(key_m) if ndbi_s.get(key_m) is not None else (statistics.get(key_m) if statistics.get("metric") == "NDBI" else None)
+
+            temporal_obs.append(TemporalObservation(
+                observation_id=img.get("id") or f"obs_{idx}",
+                scene_id=img.get("id") or f"obs_{idx}",
+                datetime_iso=i_dt_iso,
+                date=i_date,
+                year=i_yr,
+                day_of_year=i_doy,
+                cloud_cover=float(img.get("cloud_cover", 0.0)),
+                coverage_fraction=1.0,
+                valid_fraction=v_pct,
+                quality_state=q_info.get("quality_state", "high"),
+                acquisition_score=1.0,
+                provenance=img.get("metadata", {}),
+                ndvi_mean=float(v_ndvi) if v_ndvi is not None else None,
+                ndwi_mean=float(v_ndwi) if v_ndwi is not None else None,
+                ndbi_mean=float(v_ndbi) if v_ndbi is not None else None,
+                band_paths=img.get("bands", {}),
+            ))
+
+    temporal_analysis = build_temporal_analysis_package(
+        observations=temporal_obs,
+        target=plan.target,
+        task=plan.task,
+        spatial_analysis=spatial_analysis,
+    )
+    statistics["temporal_analysis"] = temporal_analysis
+    execution_trace.append("Phase 7 Temporal reasoning completed")
+
+    # Expose temporal layer in layer_package
+    if temporal_analysis.get("available"):
+        pix_pers = temporal_analysis.get("pixel_persistence", {})
+        if pix_pers.get("available"):
+            layer_package["temporal"] = {
+                "persistence_raster_url": _safe_vis_url(pix_pers.get("raster_filename")),
+                "bounds": visualization_bounds,
+                "classes": pix_pers.get("classes"),
+                "fractions": pix_pers.get("fractions"),
+                "observation_count": temporal_analysis.get("observation_count"),
+                "usable_observation_count": temporal_analysis.get("usable_observation_count"),
+                "seasonal_comparability": temporal_analysis.get("seasonal_comparability", {}).get("comparability"),
+            }
+
+    # ========================================================
+    # 10f. Reliability & Confidence Calibration (Phase 8)
+    # ========================================================
+    calibration = build_calibration_package(
+        candidate_package=candidate_package,
+        multi_index_evidence=multi_index_evidence,
+        spatial_analysis=spatial_analysis,
+        temporal_analysis=temporal_analysis,
+        imagery_result=imagery_result,
+        execution_results=execution_results,
+        temporal_observations=temporal_obs,
+        target=plan.target,
+        task=plan.task,
+        temporal_mode=plan.temporal_mode or "bi_temporal",
+    )
+    statistics["calibration"] = calibration
+    execution_trace.append("Phase 8 Reliability and confidence calibration completed")
+
+    # ========================================================
+    # 10g. Structured Interpretation & Grounded Explanation (Phase 5C + 6 + 7 + 8)
+    # ========================================================
+    interpretation = generate_structured_interpretation(
+        candidate_package=candidate_package,
+        multi_index_evidence=multi_index_evidence,
+        target=plan.target,
+        task=plan.task,
+        spatial_analysis=spatial_analysis,
+        temporal_analysis=temporal_analysis,
+        calibration=calibration,
+    )
+    statistics["interpretation"] = interpretation
+    execution_trace.append("Phase 5C/6/7/8 Structured interpretation generated")
+
+    grounded_explanation = interpretation.get("summary") or explanation
+
+    # ========================================================
     # 11. P4 VLM
     # ========================================================
 
     p2_response = {
         "status": "success",
-        "answer": explanation,
+        "answer": grounded_explanation,
         "confidence": 0.9,
         "query": request.query,
         "plan": plan.model_dump(),
         "statistics": statistics,
         "layers": layers,
+        "layer_package": layer_package,
+        "multi_index_evidence": multi_index_evidence,
+        "candidates": candidates,
+        "candidate_package": candidate_package,
+        "interpretation": interpretation,
+        "spatial_analysis": spatial_analysis,
+        "temporal_analysis": temporal_analysis,
+        "calibration": calibration,
         "evidence": evidence,
         "execution_trace": execution_trace,
         "execution_tools": tools,
@@ -1282,6 +1552,13 @@ def process_query(
     }
 
     evidence_package = build_evidence(p2_response)
+    evidence_package["multi_index_evidence"] = multi_index_evidence
+    evidence_package["candidates"] = candidates
+    evidence_package["candidate_package"] = candidate_package
+    evidence_package["interpretation"] = interpretation
+    evidence_package["spatial_analysis"] = spatial_analysis
+    evidence_package["temporal_analysis"] = temporal_analysis
+    evidence_package["calibration"] = calibration
     p2_response["evidence_package"] = evidence_package
 
     vlm_answer = generate_vlm_answer(
@@ -1305,7 +1582,7 @@ def process_query(
     final_answer = (
         vlm_answer
         if vlm_answer
-        else explanation
+        else grounded_explanation
     )
 
     return AnalysisResult(
@@ -1315,6 +1592,14 @@ def process_query(
         plan=plan.model_dump(),
         statistics=statistics,
         layers=layers,
+        layer_package=layer_package,
+        multi_index_evidence=multi_index_evidence,
+        candidates=candidates,
+        candidate_package=candidate_package,
+        interpretation=interpretation,
+        spatial_analysis=spatial_analysis,
+        temporal_analysis=temporal_analysis,
+        calibration=calibration,
         evidence=evidence,
         execution_trace=execution_trace,
         visualization_url=visualization_url,

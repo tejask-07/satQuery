@@ -21,8 +21,7 @@ def search_imagery(
 
     Returns standard imagery result structure with source 'REAL_SENTINEL_2'.
     """
-    provider = Sentinel2Provider()
-    return provider.search_and_fetch(
+    return search_real_sentinel2(
         time_start=time_start,
         time_end=time_end,
         aoi=aoi,

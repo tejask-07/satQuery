@@ -1,0 +1,136 @@
+{
+  "benchmark_title": "VALIDATED MULTI-SCENE BENCHMARK",
+  "threshold_sensitivity": [
+    {
+      "candidate_threshold": 0.35,
+      "mmu_pixels": 1,
+      "macro_precision": 0.1615,
+      "macro_recall": 0.1251,
+      "macro_f1": 0.1052,
+      "macro_iou": 0.0906
+    },
+    {
+      "candidate_threshold": 0.35,
+      "mmu_pixels": 4,
+      "macro_precision": 0.1701,
+      "macro_recall": 0.1251,
+      "macro_f1": 0.1052,
+      "macro_iou": 0.0906
+    },
+    {
+      "candidate_threshold": 0.35,
+      "mmu_pixels": 8,
+      "macro_precision": 0.2042,
+      "macro_recall": 0.1251,
+      "macro_f1": 0.1052,
+      "macro_iou": 0.0906
+    },
+    {
+      "candidate_threshold": 0.35,
+      "mmu_pixels": 16,
+      "macro_precision": 0.2041,
+      "macro_recall": 0.1251,
+      "macro_f1": 0.1052,
+      "macro_iou": 0.0906
+    },
+    {
+      "candidate_threshold": 0.45,
+      "mmu_pixels": 1,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.45,
+      "mmu_pixels": 4,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.45,
+      "mmu_pixels": 8,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.45,
+      "mmu_pixels": 16,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.55,
+      "mmu_pixels": 1,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.55,
+      "mmu_pixels": 4,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.55,
+      "mmu_pixels": 8,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.55,
+      "mmu_pixels": 16,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.65,
+      "mmu_pixels": 1,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.65,
+      "mmu_pixels": 4,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.65,
+      "mmu_pixels": 8,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    },
+    {
+      "candidate_threshold": 0.65,
+      "mmu_pixels": 16,
+      "macro_precision": 0.0905,
+      "macro_recall": 0.125,
+      "macro_f1": 0.105,
+      "macro_iou": 0.0905
+    }
+  ],
+  "val_scenes_evaluated": 1,
+  "note": "Threshold sensitivity evaluated on 1 VALIDATION scene(s). Production thresholds left unaltered at candidate_threshold=0.45, MMU=4.",
+  "policy": "No threshold tuning on TEST split; production thresholds left unaltered."
+}

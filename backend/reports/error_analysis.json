@@ -1,0 +1,64 @@
+{
+  "benchmark_title": "VALIDATED MULTI-SCENE BENCHMARK",
+  "scenes": [
+    {
+      "example_id": "BENCH-VIE-WORLDCOVER-TRAIN-01",
+      "total_evaluated_pixels": 10000,
+      "total_error_pixels": 887,
+      "error_rate": 0.0887,
+      "category_counts": {
+        "URBAN_FALSE_POSITIVE_NDBI": 0,
+        "VEGETATION_SEASONAL_EFFECT": 0,
+        "WATER_EPHEMERAL_CHANGE": 19,
+        "CLOUD_CONTAMINATION": 0,
+        "SMALL_REGION_FILTERED": 0,
+        "MIXED_PIXEL": 845,
+        "INSUFFICIENT_TEMPORAL_EVIDENCE": 8,
+        "CONFLICTING_INDICES": 15,
+        "UNCATEGORIZED": 0
+      },
+      "category_percentages": {
+        "URBAN_FALSE_POSITIVE_NDBI": 0.0,
+        "VEGETATION_SEASONAL_EFFECT": 0.0,
+        "WATER_EPHEMERAL_CHANGE": 2.14,
+        "CLOUD_CONTAMINATION": 0.0,
+        "SMALL_REGION_FILTERED": 0.0,
+        "MIXED_PIXEL": 95.26,
+        "INSUFFICIENT_TEMPORAL_EVIDENCE": 0.9,
+        "CONFLICTING_INDICES": 1.69,
+        "UNCATEGORIZED": 0.0
+      },
+      "primary_failure_mode": "MIXED_PIXEL"
+    },
+    {
+      "example_id": "BENCH-MUM-WORLDCOVER-VAL-01",
+      "total_evaluated_pixels": 360000,
+      "total_error_pixels": 99330,
+      "error_rate": 0.2759,
+      "category_counts": {
+        "URBAN_FALSE_POSITIVE_NDBI": 0,
+        "VEGETATION_SEASONAL_EFFECT": 0,
+        "WATER_EPHEMERAL_CHANGE": 0,
+        "CLOUD_CONTAMINATION": 0,
+        "SMALL_REGION_FILTERED": 0,
+        "MIXED_PIXEL": 89245,
+        "INSUFFICIENT_TEMPORAL_EVIDENCE": 8037,
+        "CONFLICTING_INDICES": 2048,
+        "UNCATEGORIZED": 0
+      },
+      "category_percentages": {
+        "URBAN_FALSE_POSITIVE_NDBI": 0.0,
+        "VEGETATION_SEASONAL_EFFECT": 0.0,
+        "WATER_EPHEMERAL_CHANGE": 0.0,
+        "CLOUD_CONTAMINATION": 0.0,
+        "SMALL_REGION_FILTERED": 0.0,
+        "MIXED_PIXEL": 89.85,
+        "INSUFFICIENT_TEMPORAL_EVIDENCE": 8.09,
+        "CONFLICTING_INDICES": 2.06,
+        "UNCATEGORIZED": 0.0
+      },
+      "primary_failure_mode": "MIXED_PIXEL"
+    }
+  ],
+  "disclaimer": "ESA WorldCover 2020 (v100) and 2021 (v200) use different classification algorithms. Observed differences may include algorithm/version effects in addition to physical land-cover change. Reference masks are designated strictly as derived_reference, not absolute ground truth."
+}

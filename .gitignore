@@ -65,3 +65,7 @@ backend/BigEarthNet-S1_AT_pure.tar
 # BigEarthNet datasets / generated metadata
 backend/BigEarthNet-S1_AT_pure.tar
 backend/data/metadata/bigearthnet_txt/BigEarthNet.txt.parquet
+
+#png
+*.png
+upload_ndvi_*

@@ -9,6 +9,13 @@ import rasterio
 from rasterio.warp import transform_bounds
 
 from app.agent.registry import get_tool
+from app.evidence.scientific_visualizations import (
+    build_index_rgba,
+    build_raw_change_rgba,
+    build_classified_change_rgba,
+    save_visualization_layer,
+)
+
 
 
 # ============================================================
@@ -139,6 +146,10 @@ def _get_images(
     Return the before and after images
     from an imagery search result.
     """
+    if imagery_result.get("status") == "REAL_FAILURE":
+        err_msg = imagery_result.get("error") or "Unknown retrieval error"
+        err_type = imagery_result.get("error_type") or "REAL_FAILURE"
+        raise RuntimeError(f"Sentinel-2 retrieval failed [{err_type}]: {err_msg}")
 
     images = imagery_result.get(
         "images",
@@ -152,6 +163,7 @@ def _get_images(
         )
 
     return images[0], images[1]
+
 
 
 def _get_visualization_source_path(
@@ -984,6 +996,10 @@ def execute_plan(
         # =====================================================
 
         if tool_name == "search_imagery":
+            is_multi = (
+                context.get("temporal_mode") in ["multi_temporal", "trend_analysis", "persistence_reversal", "acceleration"]
+                or bool(context.get("multi_temporal", False))
+            )
 
             result = tool(
                 time_start=time_start,
@@ -991,6 +1007,7 @@ def execute_plan(
                 aoi=context.get(
                     "aoi"
                 ),
+                multi_temporal=is_multi,
             )
 
             imagery_result = result
@@ -1051,12 +1068,39 @@ def execute_plan(
                 nir_after_path
             )
 
+            mask_before_path = before.get("bands", {}).get("mask")
+            mask_after_path = after.get("bands", {}).get("mask")
+            mask_before = _read_raster(mask_before_path) if mask_before_path else None
+            mask_after = _read_raster(mask_after_path) if mask_after_path else None
+
             result = tool(
                 red_before=red_before,
                 nir_before=nir_before,
                 red_after=red_after,
                 nir_after=nir_after,
+                mask_before=mask_before,
+                mask_after=mask_after,
             )
+
+            ts_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            idx_vis = {}
+            if "ndvi_before" in result and result["ndvi_before"] is not None:
+                try:
+                    vis_b = build_index_rgba(result["ndvi_before"], "NDVI", valid_mask=mask_before)
+                    idx_vis["before"] = save_visualization_layer(
+                        vis_b, f"ndvi_before_{ts_now}.png", source_raster_path=red_before_path
+                    )
+                except Exception as exc:
+                    print(f"[VIS WARNING] NDVI before: {exc}")
+            if "ndvi_after" in result and result["ndvi_after"] is not None:
+                try:
+                    vis_a = build_index_rgba(result["ndvi_after"], "NDVI", valid_mask=mask_after)
+                    idx_vis["after"] = save_visualization_layer(
+                        vis_a, f"ndvi_after_{ts_now}.png", source_raster_path=red_after_path
+                    )
+                except Exception as exc:
+                    print(f"[VIS WARNING] NDVI after: {exc}")
+            result["visualizations"] = idx_vis
 
         # =====================================================
         # TEMPORAL NDWI
@@ -1114,12 +1158,39 @@ def execute_plan(
                 nir_after_path
             )
 
+            mask_before_path = before.get("bands", {}).get("mask")
+            mask_after_path = after.get("bands", {}).get("mask")
+            mask_before = _read_raster(mask_before_path) if mask_before_path else None
+            mask_after = _read_raster(mask_after_path) if mask_after_path else None
+
             result = tool(
                 green_before=green_before,
                 nir_before=nir_before,
                 green_after=green_after,
                 nir_after=nir_after,
+                mask_before=mask_before,
+                mask_after=mask_after,
             )
+
+            ts_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            idx_vis = {}
+            if "ndwi_before" in result and result["ndwi_before"] is not None:
+                try:
+                    vis_b = build_index_rgba(result["ndwi_before"], "NDWI", valid_mask=mask_before)
+                    idx_vis["before"] = save_visualization_layer(
+                        vis_b, f"ndwi_before_{ts_now}.png", source_raster_path=green_before_path
+                    )
+                except Exception as exc:
+                    print(f"[VIS WARNING] NDWI before: {exc}")
+            if "ndwi_after" in result and result["ndwi_after"] is not None:
+                try:
+                    vis_a = build_index_rgba(result["ndwi_after"], "NDWI", valid_mask=mask_after)
+                    idx_vis["after"] = save_visualization_layer(
+                        vis_a, f"ndwi_after_{ts_now}.png", source_raster_path=green_after_path
+                    )
+                except Exception as exc:
+                    print(f"[VIS WARNING] NDWI after: {exc}")
+            result["visualizations"] = idx_vis
 
         # =====================================================
         # TEMPORAL NDBI
@@ -1177,12 +1248,41 @@ def execute_plan(
                 nir_after_path
             )
 
+            mask_before_path = before.get("bands", {}).get("mask")
+            mask_after_path = after.get("bands", {}).get("mask")
+            mask_before = _read_raster(mask_before_path) if mask_before_path else None
+            mask_after = _read_raster(mask_after_path) if mask_after_path else None
+
             result = tool(
                 swir_before=swir_before,
                 nir_before=nir_before,
                 swir_after=swir_after,
                 nir_after=nir_after,
+                mask_before=mask_before,
+                mask_after=mask_after,
             )
+
+            ts_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            idx_vis = {}
+            if "ndbi_before" in result and result["ndbi_before"] is not None:
+                try:
+                    vis_b = build_index_rgba(result["ndbi_before"], "NDBI", valid_mask=mask_before)
+                    idx_vis["before"] = save_visualization_layer(
+                        vis_b, f"ndbi_before_{ts_now}.png", source_raster_path=swir_before_path
+                    )
+                except Exception as exc:
+                    print(f"[VIS WARNING] NDBI before: {exc}")
+            if "ndbi_after" in result and result["ndbi_after"] is not None:
+                try:
+                    vis_a = build_index_rgba(result["ndbi_after"], "NDBI", valid_mask=mask_after)
+                    idx_vis["after"] = save_visualization_layer(
+                        vis_a, f"ndbi_after_{ts_now}.png", source_raster_path=swir_after_path
+                    )
+                except Exception as exc:
+                    print(f"[VIS WARNING] NDBI after: {exc}")
+            result["visualizations"] = idx_vis
+
+
 
         # =====================================================
         # SINGLE IMAGE NDWI
@@ -1521,110 +1621,166 @@ def execute_plan(
 
         elif tool_name == "detect_change":
 
-            temporal_result = None
-            index_name = None
+            # Ensure all three temporal indices (NDVI, NDWI, NDBI) are calculated
+            # so the full scientific layer package is available for every temporal analysis
+            if imagery_result is not None and len(imagery_result.get("images", [])) >= 2:
+                before_img, after_img = _get_images(imagery_result)
+                b_bands = before_img.get("bands", {})
+                a_bands = after_img.get("bands", {})
+                m_b_path = b_bands.get("mask")
+                m_a_path = a_bands.get("mask")
+                m_b = _read_raster(m_b_path) if m_b_path else None
+                m_a = _read_raster(m_a_path) if m_a_path else None
 
-            # -------------------------------------------------
-            # Temporal NDVI
-            # -------------------------------------------------
+                # 1. NDVI
+                if "calculate_temporal_ndvi" not in results and b_bands.get("red") and b_bands.get("nir") and a_bands.get("red") and a_bands.get("nir"):
+                    try:
+                        ndvi_tool = get_tool("calculate_temporal_ndvi")
+                        r_b = _read_raster(b_bands["red"])
+                        n_b = _read_raster(b_bands["nir"])
+                        r_a = _read_raster(a_bands["red"])
+                        n_a = _read_raster(a_bands["nir"])
+                        res_ndvi = ndvi_tool(red_before=r_b, nir_before=n_b, red_after=r_a, nir_after=n_a, mask_before=m_b, mask_after=m_a)
+                        ts_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+                        vis_dict = {}
+                        if "ndvi_before" in res_ndvi and res_ndvi["ndvi_before"] is not None:
+                            vb = build_index_rgba(res_ndvi["ndvi_before"], "NDVI", valid_mask=m_b)
+                            vis_dict["before"] = save_visualization_layer(vb, f"ndvi_before_{ts_now}.png", source_raster_path=b_bands["red"])
+                        if "ndvi_after" in res_ndvi and res_ndvi["ndvi_after"] is not None:
+                            va = build_index_rgba(res_ndvi["ndvi_after"], "NDVI", valid_mask=m_a)
+                            vis_dict["after"] = save_visualization_layer(va, f"ndvi_after_{ts_now}.png", source_raster_path=a_bands["red"])
+                        res_ndvi["visualizations"] = vis_dict
+                        results["calculate_temporal_ndvi"] = res_ndvi
+                    except Exception as exc:
+                        print(f"[EXECUTOR WARNING] Auto-calc temporal NDVI: {exc}")
 
-            if (
-                "calculate_temporal_ndvi"
-                in results
-            ):
+                # 2. NDWI
+                if "calculate_temporal_ndwi" not in results and b_bands.get("green") and b_bands.get("nir") and a_bands.get("green") and a_bands.get("nir"):
+                    try:
+                        ndwi_tool = get_tool("calculate_temporal_ndwi")
+                        g_b = _read_raster(b_bands["green"])
+                        n_b = _read_raster(b_bands["nir"])
+                        g_a = _read_raster(a_bands["green"])
+                        n_a = _read_raster(a_bands["nir"])
+                        res_ndwi = ndwi_tool(green_before=g_b, nir_before=n_b, green_after=g_a, nir_after=n_a, mask_before=m_b, mask_after=m_a)
+                        ts_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+                        vis_dict = {}
+                        if "ndwi_before" in res_ndwi and res_ndwi["ndwi_before"] is not None:
+                            vb = build_index_rgba(res_ndwi["ndwi_before"], "NDWI", valid_mask=m_b)
+                            vis_dict["before"] = save_visualization_layer(vb, f"ndwi_before_{ts_now}.png", source_raster_path=b_bands["green"])
+                        if "ndwi_after" in res_ndwi and res_ndwi["ndwi_after"] is not None:
+                            va = build_index_rgba(res_ndwi["ndwi_after"], "NDWI", valid_mask=m_a)
+                            vis_dict["after"] = save_visualization_layer(va, f"ndwi_after_{ts_now}.png", source_raster_path=a_bands["green"])
+                        res_ndwi["visualizations"] = vis_dict
+                        results["calculate_temporal_ndwi"] = res_ndwi
+                    except Exception as exc:
+                        print(f"[EXECUTOR WARNING] Auto-calc temporal NDWI: {exc}")
 
-                temporal_result = results[
-                    "calculate_temporal_ndvi"
-                ]
+                # 3. NDBI
+                if "calculate_temporal_ndbi" not in results and b_bands.get("swir") and b_bands.get("nir") and a_bands.get("swir") and a_bands.get("nir"):
+                    try:
+                        ndbi_tool = get_tool("calculate_temporal_ndbi")
+                        s_b = _read_raster(b_bands["swir"])
+                        n_b = _read_raster(b_bands["nir"])
+                        s_a = _read_raster(a_bands["swir"])
+                        n_a = _read_raster(a_bands["nir"])
+                        res_ndbi = ndbi_tool(swir_before=s_b, nir_before=n_b, swir_after=s_a, nir_after=n_a, mask_before=m_b, mask_after=m_a)
+                        ts_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+                        vis_dict = {}
+                        if "ndbi_before" in res_ndbi and res_ndbi["ndbi_before"] is not None:
+                            vb = build_index_rgba(res_ndbi["ndbi_before"], "NDBI", valid_mask=m_b)
+                            vis_dict["before"] = save_visualization_layer(vb, f"ndbi_before_{ts_now}.png", source_raster_path=b_bands["swir"])
+                        if "ndbi_after" in res_ndbi and res_ndbi["ndbi_after"] is not None:
+                            va = build_index_rgba(res_ndbi["ndbi_after"], "NDBI", valid_mask=m_a)
+                            vis_dict["after"] = save_visualization_layer(va, f"ndbi_after_{ts_now}.png", source_raster_path=a_bands["swir"])
+                        res_ndbi["visualizations"] = vis_dict
+                        results["calculate_temporal_ndbi"] = res_ndbi
+                    except Exception as exc:
+                        print(f"[EXECUTOR WARNING] Auto-calc temporal NDBI: {exc}")
 
-                index_name = "ndvi"
+            # Determine primary index based on query context / target / task
+            req_metric = str(context.get("metric") or "").lower()
+            req_target = str(context.get("target") or "").lower()
+            req_task = str(context.get("task") or "").lower()
 
-            # -------------------------------------------------
-            # Temporal NDWI
-            # -------------------------------------------------
+            if req_metric == "ndbi" or req_target == "urban" or "urban" in req_task:
+                primary_index = "ndbi"
+            elif req_metric == "ndwi" or req_target == "water" or "water" in req_task:
+                primary_index = "ndwi"
+            else:
+                primary_index = "ndvi"
 
-            elif (
-                "calculate_temporal_ndwi"
-                in results
-            ):
+            threshold = float(context.get("threshold", 0.05))
 
-                temporal_result = results[
-                    "calculate_temporal_ndwi"
-                ]
+            # Run change detection for all available temporal indices
+            all_changes: dict[str, dict] = {}
+            for idx_name in ["ndvi", "ndwi", "ndbi"]:
+                t_key = f"calculate_temporal_{idx_name}"
+                if t_key in results and results[t_key]:
+                    t_res = results[t_key]
+                    b_arr = t_res.get(f"{idx_name}_before")
+                    a_arr = t_res.get(f"{idx_name}_after")
+                    v_mask = t_res.get("valid_mask")
+                    if b_arr is not None and a_arr is not None:
+                        try:
+                            chg_res = tool(
+                                before=b_arr,
+                                after=a_arr,
+                                threshold=threshold,
+                                valid_mask=v_mask,
+                            )
+                            # Find georeferenced source raster
+                            src_path = None
+                            if imagery_result is not None:
+                                before_img, _ = _get_images(imagery_result)
+                                b_bands = before_img.get("bands", {})
+                                if idx_name == "ndbi":
+                                    src_path = b_bands.get("swir") or b_bands.get("nir")
+                                elif idx_name == "ndwi":
+                                    src_path = b_bands.get("green") or b_bands.get("nir")
+                                else:
+                                    src_path = b_bands.get("red") or b_bands.get("nir")
 
-                index_name = "ndwi"
+                            c_map = chg_res.get("change_map")
+                            if c_map is not None:
+                                vis_chg = _save_change_map_visualization(
+                                    change_map=c_map,
+                                    prefix=f"{idx_name}_change",
+                                    source_raster_path=src_path,
+                                    threshold=threshold,
+                                )
+                                chg_res["visualization"] = vis_chg
+                                chg_res["bounds"] = vis_chg.get("bounds")
 
-            # -------------------------------------------------
-            # Temporal NDBI
-            # -------------------------------------------------
+                            valid_diff = c_map[np.isfinite(c_map)] if c_map is not None else []
+                            chg_res["min_change"] = float(np.min(valid_diff)) if len(valid_diff) > 0 else None
+                            chg_res["max_change"] = float(np.max(valid_diff)) if len(valid_diff) > 0 else None
+                            all_changes[idx_name.lower()] = chg_res
+                            all_changes[idx_name.upper()] = chg_res
+                        except Exception as exc:
+                            print(f"[EXECUTOR WARNING] Change detection for {idx_name}: {exc}")
 
-            elif (
-                "calculate_temporal_ndbi"
-                in results
-            ):
-
-                temporal_result = results[
-                    "calculate_temporal_ndbi"
-                ]
-
-                index_name = "ndbi"
-
-            # -------------------------------------------------
-            # IMAGE COMPARISON
-            # -------------------------------------------------
-
+            # Pick primary result matching target semantics
+            if primary_index.lower() in all_changes:
+                result = dict(all_changes[primary_index.lower()])
+            elif primary_index.upper() in all_changes:
+                result = dict(all_changes[primary_index.upper()])
+            elif all_changes:
+                first_k = list(all_changes.keys())[0]
+                result = dict(all_changes[first_k])
             elif "compare_images" in results:
-
-                comparison_result = results[
-                    "compare_images"
-                ]
-
-                result = (
-                    _normalize_comparison_result(
-                        comparison_result
-                    )
-                )
-
-                if comparison_result.get(
-                    "visualization"
-                ) is not None:
-
-                    result[
-                        "visualization"
-                    ] = comparison_result[
-                        "visualization"
-                    ]
-
-                if comparison_result.get(
-                    "bounds"
-                ) is not None:
-
-                    result[
-                        "bounds"
-                    ] = comparison_result[
-                        "bounds"
-                    ]
-
+                comparison_result = results["compare_images"]
+                result = _normalize_comparison_result(comparison_result)
+                if comparison_result.get("visualization") is not None:
+                    result["visualization"] = comparison_result["visualization"]
+                if comparison_result.get("bounds") is not None:
+                    result["bounds"] = comparison_result["bounds"]
             elif context.get("before") is not None and context.get("after") is not None:
-
                 before = context["before"]
                 after = context["after"]
-                threshold = float(context.get("threshold", 0.05))
-
-                result = tool(
-                    before=before,
-                    after=after,
-                    threshold=threshold,
-                )
-
-                source_raster_path = context.get(
-                    "source_raster_path"
-                )
-
-                change_map = result.get(
-                    "change_map"
-                )
-
+                result = tool(before=before, after=after, threshold=threshold)
+                source_raster_path = context.get("source_raster_path")
+                change_map = result.get("change_map")
                 if change_map is not None:
                     visualization = _save_change_map_visualization(
                         change_map=change_map,
@@ -1634,182 +1790,13 @@ def execute_plan(
                     )
                     result["visualization"] = visualization
                     result["bounds"] = visualization.get("bounds")
-
             else:
-
                 raise RuntimeError(
-                    "detect_change requires a temporal "
-                    "index calculation or image comparison first."
+                    "detect_change requires a temporal index calculation or image comparison first."
                 )
 
-            # -------------------------------------------------
-            # Temporal index change detection
-            # -------------------------------------------------
-
-            if temporal_result is not None and index_name is not None:
-
-                before_key = (
-                    f"{index_name}_before"
-                )
-
-                after_key = (
-                    f"{index_name}_after"
-                )
-
-                before = temporal_result.get(
-                    before_key
-                )
-
-                after = temporal_result.get(
-                    after_key
-                )
-
-                if (
-                    before is None
-                    or after is None
-                ):
-
-                    raise RuntimeError(
-                        f"Temporal {index_name.upper()} "
-                        f"result is missing "
-                        f"{before_key} or {after_key}."
-                    )
-
-                # ---------------------------------------------
-                # Scientific change detection
-                # ---------------------------------------------
-
-                threshold = float(
-                    context.get(
-                        "threshold",
-                        0.05,
-                    )
-                )
-
-                result = tool(
-                    before=before,
-                    after=after,
-                    threshold=threshold,
-                )
-
-                # ---------------------------------------------
-                # Find source GeoTIFF.
-                # ---------------------------------------------
-
-                source_raster_path = None
-
-                if imagery_result is not None:
-
-                    before_image, _ = _get_images(
-                        imagery_result
-                    )
-
-                    before_bands = (
-                        before_image.get(
-                            "bands",
-                            {},
-                        )
-                    )
-
-                    if index_name == "ndbi":
-
-                        source_raster_path = (
-                            before_bands.get(
-                                "swir"
-                            )
-                            or before_bands.get(
-                                "nir"
-                            )
-                        )
-
-                    elif index_name == "ndwi":
-
-                        source_raster_path = (
-                            before_bands.get(
-                                "green"
-                            )
-                            or before_bands.get(
-                                "nir"
-                            )
-                        )
-
-                    elif index_name == "ndvi":
-
-                        source_raster_path = (
-                            before_bands.get(
-                                "red"
-                            )
-                            or before_bands.get(
-                                "nir"
-                            )
-                        )
-
-                    if source_raster_path is None:
-
-                        source_raster_path = (
-                            before_bands.get(
-                                "nir"
-                            )
-                            or before_bands.get(
-                                "red"
-                            )
-                            or before_bands.get(
-                                "green"
-                            )
-                            or before_bands.get(
-                                "swir"
-                            )
-                        )
-
-                # ---------------------------------------------
-                # Make sure we actually received change_map.
-                # ---------------------------------------------
-
-                change_map = result.get(
-                    "change_map"
-                )
-
-                if change_map is None:
-
-                    raise RuntimeError(
-                        f"Change detection for "
-                        f"{index_name.upper()} did not return "
-                        "a change_map."
-                    )
-
-                # ---------------------------------------------
-                # Create visualization.
-                # ---------------------------------------------
-
-                visualization = _save_change_map_visualization(
-                    change_map=change_map,
-                    prefix=f"{index_name}_change",
-                    source_raster_path=source_raster_path,
-                    threshold=float(
-                        result.get(
-                            "threshold",
-                            0.05,
-                        )
-                    ),
-                )
-
-                # ---------------------------------------------
-                # Attach visualization.
-                # ---------------------------------------------
-
-                result[
-                    "visualization"
-                ] = visualization
-
-                # ---------------------------------------------
-                # Expose bounds directly.
-                # ---------------------------------------------
-
-                result[
-                    "bounds"
-                ] = visualization.get(
-                    "bounds"
-                )
+            result["all_changes"] = all_changes
+            result["primary_metric"] = primary_index.upper()
 
         # =====================================================
         # FALLBACK
