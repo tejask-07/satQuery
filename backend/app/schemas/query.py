@@ -1,4 +1,4 @@
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Union
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -9,8 +9,17 @@ class QueryRequest(BaseModel):
     # Optional user-provided images
     image_ids: List[str] = Field(default_factory=list)
 
-    # Optional Area of Interest
-    aoi: Optional[dict] = None
+    # Optional Area of Interest (GeoJSON dict or bbox list)
+    aoi: Optional[Union[dict, list]] = None
+
+    # Optional explicit Optical and SAR multimodal image identifiers
+    optical_image_id: Optional[str] = None
+    sar_image_id: Optional[str] = None
+
+    # Optional temporal parameters (Step 14)
+    time_start: Optional[str] = None
+    time_end: Optional[str] = None
+
 
 
 class QueryPlan(BaseModel):
@@ -21,7 +30,7 @@ class QueryPlan(BaseModel):
     intent: Optional[str] = None
 
     # Area of Interest selected by the user
-    aoi: Optional[dict] = None
+    aoi: Optional[Union[dict, list]] = None
 
     # What the analysis is about (single target or summary target)
     target: Optional[str] = None

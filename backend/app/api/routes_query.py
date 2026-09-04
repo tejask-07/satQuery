@@ -1,14 +1,25 @@
+import os
 import re
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter
+from app import config
+from app.config import BACKEND_DIR, load_env_file
+
+# Ensure latest .env variables are present
+load_env_file(BACKEND_DIR / ".env")
+
+from fastapi import APIRouter, HTTPException
 from app.evidence.visualizations import save_change_map, VISUALIZATION_DIR
 from app.agent.executor import (
     execute_plan,
     _save_change_map_visualization,
+    _get_raster_bounds,
 )
 from app.agent.planner import create_execution_plan
+from app.remote_sensing.multimodal.ingestion import resolve_optical_sar_references
 from app.schemas.analysis import AnalysisResult
 from app.schemas.query import QueryPlan, QueryRequest
 from app.evidence.multi_index import calculate_multi_index_evidence
@@ -559,6 +570,229 @@ def generate_vlm_answer(
         return None
 
 
+_PATH_PATTERN = re.compile(
+    r"^(?:[a-zA-Z]:[\\/]|/(?:home|Users|etc|tmp|var|private|root)[\\/]|\\\\)",
+    re.IGNORECASE,
+)
+
+
+def _is_filesystem_path(val: Any) -> bool:
+    if isinstance(val, Path):
+        return True
+    if isinstance(val, str):
+        s = val.strip()
+        if _PATH_PATTERN.match(s):
+            return True
+        if (
+            "data/cache" in s
+            or "data\\cache" in s
+            or "backend/data" in s
+            or "backend\\data" in s
+            or "data/uploads" in s
+            or "data\\uploads" in s
+        ):
+            return True
+        if (s.endswith(".tif") or s.endswith(".tiff")) and ("/" in s or "\\" in s):
+            return True
+    return False
+
+
+def sanitize_optical_sar_metadata(data: Any) -> Any:
+    """
+    Recursively sanitize public metadata by removing local server filesystem paths
+    while strictly preserving item_ids, acquisition dates, polarizations, modes,
+    spatial coverage, temporal delta, selection reasons, and public URL references.
+    """
+    if isinstance(data, dict):
+        sanitized = {}
+        for k, v in data.items():
+            # Skip keys known to store raw server file paths
+            if k in (
+                "path",
+                "sar_path",
+                "optical_path",
+                "raw_path",
+                "filepath",
+                "file_path",
+                "vh_path",
+                "vv_path",
+            ):
+                continue
+            # If key is "vh" or "vv" and value is a path string, omit it
+            if k in ("vh", "vv") and _is_filesystem_path(v):
+                continue
+            # If value is a direct path string or Path object, omit
+            if _is_filesystem_path(v):
+                continue
+            # If key is "bands" and list contains path strings, omit
+            if k == "bands" and isinstance(v, (list, tuple)):
+                if any(_is_filesystem_path(item) for item in v):
+                    continue
+            sanitized[k] = sanitize_optical_sar_metadata(v)
+        return sanitized
+    elif isinstance(data, list):
+        sanitized_list = []
+        for item in data:
+            if not _is_filesystem_path(item):
+                sanitized_list.append(sanitize_optical_sar_metadata(item))
+        return sanitized_list
+    elif isinstance(data, Path):
+        return str(data.name)
+    else:
+        return data
+
+
+def _build_optical_sar_api_response(
+    plan: QueryPlan,
+    query: str,
+    sar_res: dict,
+    opt_path: Optional[Path] = None,
+) -> AnalysisResult:
+    """
+    Format multimodal Optical-SAR specialist execution output into the unified AnalysisResult schema.
+    """
+    uid = uuid.uuid4().hex[:8]
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    try:
+        bounds = _get_raster_bounds(str(opt_path)) if opt_path else None
+    except Exception:
+        bounds = None
+
+    vis_dict = sar_res.get("visuals", {}) or {}
+    layers = []
+    images_dict = {}
+    primary_vis_url = None
+
+    # 1. Optical RGB
+    if vis_dict.get("optical") is not None:
+        try:
+            opt_fname = f"multimodal_optical_{uid}_{ts}.png"
+            vis_dict["optical"].save(VISUALIZATION_DIR / opt_fname)
+            opt_url = f"/visualizations/{opt_fname}"
+            primary_vis_url = opt_url
+            images_dict["optical"] = opt_url
+            layers.append({
+                "name": "Optical Surface Reflectance",
+                "type": "optical_rgb",
+                "visualization_url": opt_url,
+                "bounds": bounds,
+            })
+        except Exception as exc:
+            print(f"[OPTICAL-SAR VIS WARNING] Optical: {exc}")
+
+    # 2. SAR VV
+    if vis_dict.get("s1_vv") is not None:
+        try:
+            vv_fname = f"multimodal_sar_vv_{uid}_{ts}.png"
+            vis_dict["s1_vv"].save(VISUALIZATION_DIR / vv_fname)
+            vv_url = f"/visualizations/{vv_fname}"
+            images_dict["s1_vv"] = vv_url
+            layers.append({
+                "name": "Sentinel-1 VV Backscatter",
+                "type": "sar_vv",
+                "visualization_url": vv_url,
+                "bounds": bounds,
+            })
+        except Exception as exc:
+            print(f"[OPTICAL-SAR VIS WARNING] VV: {exc}")
+
+    # 3. SAR VH
+    if vis_dict.get("s1_vh") is not None:
+        try:
+            vh_fname = f"multimodal_sar_vh_{uid}_{ts}.png"
+            vis_dict["s1_vh"].save(VISUALIZATION_DIR / vh_fname)
+            vh_url = f"/visualizations/{vh_fname}"
+            images_dict["s1_vh"] = vh_url
+            layers.append({
+                "name": "Sentinel-1 VH Backscatter",
+                "type": "sar_vh",
+                "visualization_url": vh_url,
+                "bounds": bounds,
+            })
+        except Exception as exc:
+            print(f"[OPTICAL-SAR VIS WARNING] VH: {exc}")
+
+    # 4. SAR Composite
+    if vis_dict.get("s1_composite") is not None:
+        try:
+            comp_fname = f"multimodal_sar_composite_{uid}_{ts}.png"
+            vis_dict["s1_composite"].save(VISUALIZATION_DIR / comp_fname)
+            comp_url = f"/visualizations/{comp_fname}"
+            images_dict["s1_composite"] = comp_url
+            layers.append({
+                "name": "Sentinel-1 Polarimetric Composite",
+                "type": "sar_composite",
+                "visualization_url": comp_url,
+                "bounds": bounds,
+            })
+        except Exception as exc:
+            print(f"[OPTICAL-SAR VIS WARNING] Composite: {exc}")
+
+    metadata = sar_res.get("metadata", {}) or {}
+    raw_pair_info = sar_res.get("optical_sar_pair") or metadata.get("optical_sar_pair")
+    pair_info = sanitize_optical_sar_metadata(raw_pair_info) if raw_pair_info else {"source": "user_supplied"}
+
+    evidence_item = {
+        "source": "optical_sar_multimodal",
+        "modalities": sar_res.get("modalities", []),
+        "grid": metadata.get("grid", {}),
+        "optical": metadata.get("optical", {}),
+        "sar": metadata.get("sar", {}),
+        "evidence_used": sar_res.get("evidence_used", False),
+        "optical_sar_pair": pair_info,
+    }
+
+    evidence = [sanitize_optical_sar_metadata(evidence_item)]
+
+    if pair_info and pair_info.get("source") == "automatic":
+        delta_val = pair_info.get("temporal_delta_days")
+        delta_str = f"{delta_val:.2f}" if isinstance(delta_val, (int, float)) else "0.00"
+        trace = [
+            "Natural-language query classified as optical_sar_analysis",
+            "Automatic Optical-SAR mode triggered (AOI and temporal range provided)",
+            "Searching Sentinel-2 optical candidates",
+            "Searching Sentinel-1 SAR candidates",
+            f"Best Optical-SAR pair selected (temporal delta: {delta_str} days)",
+            "Verified presence of both Optical and SAR GeoTIFF rasters",
+            "Co-registered SAR onto optical reference grid",
+            "Generated multi-sensor visual layers for qualitative inspection",
+            "Grounding prompt and multimodal inputs evaluated by VLM specialist",
+        ]
+    else:
+        trace = [
+            "Natural-language query classified as optical_sar_analysis",
+            "Verified presence of both Optical and SAR GeoTIFF rasters",
+            "Co-registered SAR onto optical reference grid",
+            "Generated multi-sensor visual layers for qualitative inspection",
+            "Grounding prompt and multimodal inputs evaluated by VLM specialist",
+        ]
+
+    statistics_dict = {
+        "task": "optical_sar_analysis",
+        "modalities": sar_res.get("modalities", []),
+        "grid": metadata.get("grid", {}),
+        "optical": metadata.get("optical", {}),
+        "sar": metadata.get("sar", {}),
+        "optical_sar_pair": pair_info,
+    }
+    statistics_dict = sanitize_optical_sar_metadata(statistics_dict)
+
+    return AnalysisResult(
+        status="success",
+        answer=sar_res.get("answer"),
+        confidence=0.9,
+        plan=plan.model_dump(),
+        statistics=statistics_dict,
+        layers=layers,
+        evidence=evidence,
+        execution_trace=trace,
+        visualization_url=primary_vis_url,
+        bounds=bounds,
+        images=images_dict,
+    )
+
+
 # ============================================================
 # API ENDPOINT
 # ============================================================
@@ -595,6 +829,100 @@ def process_query(
     tools = create_execution_plan(
         plan
     )
+
+    # --------------------------------------------------------
+    # OPTICAL-SAR MULTIMODAL ROUTE
+    # --------------------------------------------------------
+    if plan.task == "optical_sar_analysis":
+        has_explicit = bool(
+            getattr(request, "optical_image_id", None)
+            or getattr(request, "sar_image_id", None)
+            or (request.image_ids and len(request.image_ids) > 0)
+        )
+
+        opt_path = None
+        sar_path = None
+
+        if has_explicit:
+            try:
+                opt_path, sar_path = resolve_optical_sar_references(
+                    optical_ref=getattr(request, "optical_image_id", None),
+                    sar_ref=getattr(request, "sar_image_id", None),
+                    image_ids=request.image_ids,
+                )
+            except (ValueError, FileNotFoundError) as ref_err:
+                raise HTTPException(
+                    status_code=400,
+                    detail=str(ref_err),
+                )
+        else:
+            # Mode B: Automatic Acquisition Validation
+            aoi_candidate = plan.aoi or getattr(request, "aoi", None)
+            if not aoi_candidate:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Optical-SAR automatic acquisition requires an AOI.",
+                )
+
+            time_start_candidate = (
+                plan.time_start
+                or getattr(request, "time_start", None)
+            )
+            time_end_candidate = (
+                plan.time_end
+                or getattr(request, "time_end", None)
+            )
+            if not time_start_candidate and not time_end_candidate:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Optical-SAR automatic acquisition requires a target date or time range.",
+                )
+
+        # Ensure environment is loaded from .env
+        load_env_file(BACKEND_DIR / ".env")
+
+        context = {
+            "optical_path": str(opt_path) if opt_path else None,
+            "sar_path": str(sar_path) if sar_path else None,
+            "question": request.query,
+            "aoi": plan.aoi or getattr(request, "aoi", None),
+            "time_start": plan.time_start or getattr(request, "time_start", None),
+            "time_end": plan.time_end or getattr(request, "time_end", None),
+            "task": plan.task,
+        }
+
+        execution_results = execute_plan(
+            tools,
+            context=context,
+        )
+
+        sar_res = execution_results.get("optical_sar_analysis", {})
+        if not sar_res.get("success"):
+            err_type = sar_res.get("error_type")
+            err_msg = sar_res.get("error") or "Optical-SAR analysis failed."
+            if err_type in (
+                "NO_OPTICAL_SCENES",
+                "NO_SAR_SCENES",
+                "NO_TEMPORALLY_COMPATIBLE_PAIR",
+                "INSUFFICIENT_SPATIAL_OVERLAP",
+            ):
+                status_code = 404
+            elif err_type in ("MALFORMED_AOI", "INVALID_DATES"):
+                status_code = 400
+            else:
+                status_code = 500
+            raise HTTPException(
+                status_code=status_code,
+                detail=err_msg,
+            )
+
+        resolved_opt_path = opt_path or context.get("optical_path")
+        return _build_optical_sar_api_response(
+            plan=plan,
+            query=request.query,
+            sar_res=sar_res,
+            opt_path=Path(resolved_opt_path) if resolved_opt_path else None,
+        )
 
     # ========================================================
     # Pass target, metric, task in context so executor tools know primary metric

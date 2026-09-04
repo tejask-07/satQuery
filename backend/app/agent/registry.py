@@ -14,6 +14,9 @@ from app.tools.change import detect_change
 # Image comparison tool
 from app.tools.comparison import compare_images
 
+# Optical-SAR multimodal analysis tool
+from app.vlm.optical_sar import run_optical_sar_analysis
+
 
 TOOL_REGISTRY = {
     # Imagery
@@ -34,6 +37,9 @@ TOOL_REGISTRY = {
 
     # Image comparison
     "compare_images": compare_images,
+
+    # Optical-SAR analysis
+    "optical_sar_analysis": run_optical_sar_analysis,
 }
 
 

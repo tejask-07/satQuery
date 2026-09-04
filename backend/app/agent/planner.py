@@ -11,6 +11,11 @@ def create_execution_plan(query_plan: QueryPlan) -> List[str]:
     task = query_plan.task
     target = (query_plan.target or "").lower()
 
+    if task == "optical_sar_analysis":
+        return [
+            "optical_sar_analysis",
+        ]
+
     if task == "urban_change" or (task == "change_detection" and target == "urban"):
         return [
             "search_imagery",

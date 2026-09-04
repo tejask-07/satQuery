@@ -18,9 +18,32 @@ def read_raster(path: str) -> tuple[np.ndarray, dict]:
             "bounds": src.bounds,
             "resolution": src.res,
             "nodata": src.nodata,
+            "count": src.count,
+            "dtypes": src.dtypes,
+            "descriptions": src.descriptions,
         }
 
     return data, metadata
+
+
+def read_raster_metadata(path: str) -> dict:
+    """
+    Read raster metadata without loading full raster pixel data into memory.
+    """
+
+    with rasterio.open(path) as src:
+        return {
+            "crs": src.crs,
+            "transform": src.transform,
+            "width": src.width,
+            "height": src.height,
+            "bounds": src.bounds,
+            "resolution": src.res,
+            "nodata": src.nodata,
+            "count": src.count,
+            "dtypes": src.dtypes,
+            "descriptions": src.descriptions,
+        }
 
 
 def write_raster(

@@ -14,6 +14,7 @@ ALLOWED_INTENTS = {
     "single_index",
     "image_comparison",
     "image_search",
+    "optical_sar_analysis",
     "unknown",
 }
 
@@ -95,13 +96,30 @@ CATEGORY_PRIMARY_INDEX: Dict[str, str] = {
 # DETERMINISTIC EXTRACTION HELPERS
 # ============================================================
 
-def extract_aoi(query_str: str, request_aoi: Optional[dict] = None) -> Tuple[Optional[dict], str]:
+def extract_aoi(query_str: str, request_aoi: Optional[Any] = None) -> Tuple[Optional[Any], str]:
     """
     Extract GeoJSON Polygon from query string [minLon, minLat, maxLon, maxLat]
     or retain request_aoi if already provided.
     """
     cleaned_query = query_str
     parsed_aoi = None
+
+    if isinstance(request_aoi, (list, tuple)) and len(request_aoi) == 4 and all(isinstance(x, (int, float)) for x in request_aoi):
+        v1, v2, v3, v4 = [float(x) for x in request_aoi]
+        minLon = min(v1, v3)
+        maxLon = max(v1, v3)
+        minLat = min(v2, v4)
+        maxLat = max(v2, v4)
+        request_aoi = {
+            "type": "Polygon",
+            "coordinates": [[
+                [minLon, minLat],
+                [maxLon, minLat],
+                [maxLon, maxLat],
+                [minLon, maxLat],
+                [minLon, minLat]
+            ]]
+        }
 
     aoi_match = re.search(
         r'\[\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\]',
@@ -208,6 +226,71 @@ def detect_transition(query: str) -> Optional[Tuple[str, str]]:
     return None
 
 
+def detect_optical_sar_intent(query: str) -> bool:
+    """
+    Detect whether a query represents a joint Optical + SAR multimodal analysis request.
+    Requires clear reference to BOTH optical and radar/SAR modalities.
+    Does NOT trigger for single-modality queries or explicit index calculations (Step 6D).
+    """
+    q = query.lower()
+
+    # If the user is specifically requesting a spectral index calculation (NDVI/NDWI/NDBI),
+    # the existing scientific index calculation has priority (Step 6D).
+    if any(k in q for k in ["calculate ndvi", "calculate ndwi", "calculate ndbi", "compute ndvi", "compute ndwi", "compute ndbi"]):
+        return False
+
+    has_optical = any(k in q for k in ["optical", "sentinel-2", "sentinel 2", "s2", "multispectral"])
+    has_sar = any(k in q for k in ["sar", "radar", "sentinel-1", "sentinel 1", "s1", "backscatter"])
+
+    if not (has_optical and has_sar):
+        return False
+
+    # Check for joint / multimodal intent phrasing
+    joint_phrases = [
+        "optical and sar",
+        "optical + sar",
+        "optical & sar",
+        "sar and optical",
+        "sar + optical",
+        "sar & optical",
+        "optical imagery and radar",
+        "radar and optical",
+        "optical and radar",
+        "multimodal optical sar",
+        "multimodal",
+        "use both",
+        "using both",
+        "together",
+        "combine",
+        "combined",
+        "joint",
+        "jointly",
+    ]
+
+    has_joint_cue = any(p in q for p in joint_phrases)
+    has_analysis_cue = any(
+        a in q
+        for a in [
+            "identify",
+            "analyze",
+            "analyse",
+            "describe",
+            "features",
+            "regions",
+            "patterns",
+            "land-cover",
+            "land cover",
+            "urban",
+            "built-up",
+            "built up",
+            "water",
+            "wetland",
+        ]
+    )
+
+    return has_joint_cue or has_analysis_cue
+
+
 # ============================================================
 # MAIN QUERY PARSER & ANALYSIS PLANNER
 # ============================================================
@@ -221,6 +304,14 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
     query = cleaned_query.lower()
 
     time_start, time_end, year_count = extract_years(query)
+    req_t_start = getattr(request, "time_start", None)
+    req_t_end = getattr(request, "time_end", None)
+    if req_t_start or req_t_end:
+        time_start = req_t_start or time_start
+        time_end = req_t_end or time_end
+        has_temporal_input = True
+    else:
+        has_temporal_input = (year_count > 0)
 
     is_change_query = any(
         w in query
@@ -240,6 +331,15 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
             "decline",
             "reduced",
             "expanded",
+            "transition",
+            "conversion",
+            "evolution",
+            "dynamic",
+            "trend",
+            "before and after",
+            "over time",
+            "temporal",
+            "across years",
         ]
     )
 
@@ -290,6 +390,38 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
                 "explanation",
                 "confidence",
             ],
+        )
+
+    # --------------------------------------------------------
+    # 1B. OPTICAL-SAR MULTIMODAL ANALYSIS
+    # --------------------------------------------------------
+    if detect_optical_sar_intent(query):
+        target_val = (
+            "urban"
+            if any(w in query for w in ["urban", "built-up", "built up", "city", "building"])
+            else (
+                "water"
+                if any(w in query for w in ["water", "river", "lake", "flood", "wetland"])
+                else ("vegetation" if any(w in query for w in ["vegetation", "forest", "crop"]) else None)
+            )
+        )
+        targets_list = [target_val] if target_val else ["urban", "water"]
+
+        return QueryPlan(
+            task="optical_sar_analysis",
+            intent="optical_sar_analysis",
+            target=target_val,
+            targets=targets_list,
+            time_start=time_start if has_temporal_input else None,
+            time_end=time_end if has_temporal_input else None,
+            aoi=aoi,
+            modalities=["optical", "sar"],
+            primary_indicators=["optical_reflectance", "radar_backscatter"],
+            supporting_indicators=["spatial_consistency"],
+            evidence_requirements=["multimodal"],
+            direction="unknown",
+            analysis=["optical_sar_analysis"],
+            outputs=["explanation", "confidence"],
         )
 
     # --------------------------------------------------------

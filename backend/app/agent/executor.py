@@ -15,6 +15,10 @@ from app.evidence.scientific_visualizations import (
     build_classified_change_rgba,
     save_visualization_layer,
 )
+from app.remote_sensing.multimodal.pairing import (
+    find_optical_sar_pair,
+    PairingErrorType,
+)
 
 
 
@@ -1797,6 +1801,130 @@ def execute_plan(
 
             result["all_changes"] = all_changes
             result["primary_metric"] = primary_index.upper()
+
+        # =====================================================
+        # OPTICAL-SAR MULTIMODAL ANALYSIS
+        # =====================================================
+
+        elif tool_name == "optical_sar_analysis":
+
+            opt_path = context.get("optical_path") or context.get("optical")
+            s_path = context.get("sar_path") or context.get("sar")
+
+            # Fallback extraction from images or image_ids if provided
+            if (not opt_path or not s_path) and context.get("images"):
+                imgs = context.get("images")
+                if isinstance(imgs, list) and len(imgs) >= 2:
+                    if not opt_path:
+                        opt_path = imgs[0]
+                    if not s_path:
+                        s_path = imgs[1]
+                elif isinstance(imgs, dict):
+                    if not opt_path:
+                        opt_path = imgs.get("optical") or imgs.get("optical_path")
+                    if not s_path:
+                        s_path = imgs.get("sar") or imgs.get("sar_path")
+
+            if (not opt_path or not s_path) and context.get("image_ids"):
+                ids = context.get("image_ids")
+                if isinstance(ids, list) and len(ids) >= 2:
+                    if not opt_path:
+                        opt_path = ids[0]
+                    if not s_path:
+                        s_path = ids[1]
+
+            pair_metadata = None
+            pair_res = None
+
+            # Mode B: Automatic Acquisition when explicit raster paths are absent
+            if not opt_path and not s_path:
+                aoi = context.get("aoi")
+                time_start = context.get("time_start")
+                time_end = context.get("time_end")
+                target_date = context.get("target_date")
+
+                if aoi is not None and (time_start is not None or time_end is not None or target_date is not None):
+                    print(f"[OPTICAL-SAR AGENT] Triggering automatic Optical-SAR acquisition for AOI={aoi}, start={time_start}, end={time_end}")
+                    pair_res = find_optical_sar_pair(
+                        aoi=aoi,
+                        time_start=time_start,
+                        time_end=time_end,
+                        target_date=target_date,
+                        fetch_data=True,
+                    )
+                    if not pair_res.get("pair_found", False):
+                        err_type = pair_res.get("error_type", PairingErrorType.NO_TEMPORALLY_COMPATIBLE_PAIR)
+                        err_msg = pair_res.get("error") or "Optical-SAR automatic acquisition failed: no compatible scene pair found."
+                        result = {
+                            "success": False,
+                            "error": err_msg,
+                            "error_type": err_type,
+                            "details": pair_res.get("details", {}),
+                            "answer": None,
+                            "modalities": [],
+                            "metadata": {},
+                            "evidence_used": False,
+                            "visuals": {},
+                            "fallback": False,
+                        }
+                        results[tool_name] = result
+                        continue
+
+                    opt_path = pair_res["optical"]["path"]
+                    s_path = pair_res["sar"]["path"]
+                    pair_metadata = {
+                        "source": "automatic",
+                        "pair_found": True,
+                        "optical_item_id": pair_res["optical"]["item_id"],
+                        "sar_item_id": pair_res["sar"]["item_id"],
+                        "optical_acquisition_datetime": pair_res["optical"]["acquisition_datetime"],
+                        "sar_acquisition_datetime": pair_res["sar"]["acquisition_datetime"],
+                        "temporal_delta_days": pair_res["temporal_delta_days"],
+                        "polarizations": pair_res["sar"]["polarizations"],
+                        "coverage": pair_res["spatial_overlap"],
+                        "spatial_overlap": pair_res["spatial_overlap"],
+                        "selection_reason": pair_res["selection_reason"],
+                        "optical": {
+                            "item_id": pair_res["optical"]["item_id"],
+                            "acquisition_datetime": pair_res["optical"]["acquisition_datetime"],
+                            "cloud_cover": pair_res["optical"].get("cloud_cover"),
+                            "path": str(pair_res["optical"]["path"]),
+                        },
+                        "sar": {
+                            "item_id": pair_res["sar"]["item_id"],
+                            "acquisition_datetime": pair_res["sar"]["acquisition_datetime"],
+                            "polarizations": pair_res["sar"]["polarizations"],
+                            "mode": pair_res["sar"].get("mode"),
+                            "path": str(pair_res["sar"]["path"]),
+                            "vh": str(pair_res["sar"].get("vh")),
+                        },
+                    }
+                    context["optical_sar_pair"] = pair_metadata
+                    context["optical_path"] = str(opt_path)
+                    context["sar_path"] = str(s_path)
+                    if pair_res["sar"].get("vh"):
+                        context["sar_vh_path"] = str(pair_res["sar"]["vh"])
+
+            q_text = context.get("question") or context.get("query") or "Analyze optical and SAR imagery."
+            ev = context.get("evidence")
+            vlm_inst = context.get("vlm")
+            sar_vh_arg = context.get("sar_vh_path") or context.get("sar_vh") or (pair_res.get("sar", {}).get("vh") if pair_res else None)
+
+            print(f"[OPTICAL-SAR AGENT] Executing multimodal analysis with optical={opt_path}, sar={s_path}, sar_vh={sar_vh_arg}")
+
+            result = tool(
+                optical_path=opt_path,
+                sar_path=s_path,
+                question=q_text,
+                evidence=ev,
+                vlm=vlm_inst,
+                sar_vh_path=str(sar_vh_arg) if sar_vh_arg else None,
+            )
+
+            if pair_metadata:
+                result["optical_sar_pair"] = pair_metadata
+                if "metadata" in result and isinstance(result["metadata"], dict):
+                    result["metadata"]["optical_sar_pair"] = pair_metadata
 
         # =====================================================
         # FALLBACK

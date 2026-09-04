@@ -1,0 +1,85 @@
+case_id,category,question,answer,optical_usage_0_to_2,sar_usage_0_to_2,multimodal_reasoning_0_to_2,physical_correctness_0_to_2,grounding_0_to_2,uncertainty_0_to_2,relevance_0_to_2,review_notes
+case_001_urban,built_up_urban,Use the optical and SAR images together to identify likely built-up areas.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
+
+Query: ""Use the optical and SAR images together to identify likely built-up areas.""
+
+Qualitative Multimodal Synthesis:
+- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
+- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
+- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
+- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
+
+Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
+case_002_water,water,Use the optical and SAR imagery together to identify water-covered regions.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
+
+Query: ""Use the optical and SAR imagery together to identify water-covered regions.""
+
+Qualitative Multimodal Synthesis:
+- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
+- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
+- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
+- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
+
+Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
+case_003_vegetation,vegetation,Describe the dominant vegetation patterns using both optical and SAR evidence.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
+
+Query: ""Describe the dominant vegetation patterns using both optical and SAR evidence.""
+
+Qualitative Multimodal Synthesis:
+- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
+- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
+- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
+- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
+
+Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
+case_004_complementary,cross_modal_complementary,What information does SAR provide that is less apparent in the optical image?,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
+
+Query: ""What information does SAR provide that is less apparent in the optical image?""
+
+Qualitative Multimodal Synthesis:
+- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
+- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
+- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
+- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
+
+Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
+case_005_vv_vh_comparison,vv_vh_comparison,Compare VV and VH evidence for likely urban or vegetated regions.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
+
+Query: ""Compare VV and VH evidence for likely urban or vegetated regions.""
+
+Qualitative Multimodal Synthesis:
+- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
+- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
+- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
+- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
+
+Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
+case_006_ambiguous,ambiguous_scene,Analyze this scene using both optical and SAR imagery. Can the boundary between cultivated fields and seminatural vegetation be unambiguously identified?,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
+
+Query: ""Analyze this scene using both optical and SAR imagery. Can the boundary between cultivated fields and seminatural vegetation be unambiguously identified?""
+
+Qualitative Multimodal Synthesis:
+- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
+- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
+- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
+- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
+
+Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
+case_007_cross_crs_alignment,cross_crs_alignment,Describe the spatial relationship between optical reflectance and SAR backscatter after reprojection to the geographic reference grid.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (143x96 pixels, CRS: EPSG:4326).
+
+Query: ""Describe the spatial relationship between optical reflectance and SAR backscatter after reprojection to the geographic reference grid.""
+
+Qualitative Multimodal Synthesis:
+- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
+- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
+- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
+- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
+
+Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,

@@ -1,0 +1,205 @@
+{
+  "manifest_version": "1.0.0",
+  "evaluation_set": "Optical-SAR Real-Data Benchmark",
+  "description": "Curated multimodal evaluation suite using real Sentinel-1 SAR and Sentinel-2 optical imagery from BigEarthNet-MM to evaluate real-data loading, grid alignment, and multimodal VLM reasoning quality.",
+  "created_at": "2026-09-05",
+  "dataset_provenance": {
+    "source_dataset": "BigEarthNet-MM (Multi-Modal BigEarthNet Benchmark, Sumbul et al., 2021)",
+    "optical_sensor": "Sentinel-2A MSI (Multi-Spectral Instrument), Level-2A Bottom-Of-Atmosphere reflectance",
+    "sar_sensor": "Sentinel-1B SAR (Synthetic Aperture Radar), C-band Interferometric Wide (IW) swath Ground Range Detected High resolution (GRDH)",
+    "license": "Community Data License Agreement - Permissive (CDLA-Permissive) / Copernicus Open Access Policy",
+    "geographic_region": "Upper Austria / Bavaria border region, Tile 33UUP",
+    "spatial_reference": "WGS 84 / UTM Zone 33N (EPSG:32633), native 10m spatial resolution",
+    "alignment_policy": "Aligned to a common optical reference grid. Reprojection ensures spatial overlap and identical pixel geometry; sub-pixel co-registration is not claimed without empirical cross-correlation."
+  },
+  "cases": [
+    {
+      "case_id": "case_001_urban",
+      "category": "built_up_urban",
+      "optical": "cases/austria_s2_optical.tif",
+      "sar": "cases/austria_s1_sar.tif",
+      "question": "Use the optical and SAR images together to identify likely built-up areas.",
+      "expected_focus": "optical reflectance/texture + SAR backscatter / urban double-bounce cues + uncertainty where ambiguous",
+      "source": {
+        "dataset": "BigEarthNet-MM",
+        "optical_id": "S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57",
+        "sar_id": "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57",
+        "optical_sensor": "Sentinel-2A MSI L2A",
+        "sar_sensor": "Sentinel-1B IW GRDH",
+        "optical_acquisition": "2017-06-13T10:10:31Z",
+        "sar_acquisition": "2017-06-12T16:58:09Z",
+        "temporal_delta_hours": 17.2,
+        "license": "CDLA-Permissive",
+        "reference_grid": "EPSG:32633, 10m grid (120x120)",
+        "ground_truth_labels": [
+          "Arable land",
+          "Broad-leaved forest",
+          "Mixed forest",
+          "Pastures"
+        ]
+      },
+      "notes": "Real multimodal observation over rural Upper Austria. High localized SAR returns (up to +0.5 dB) might indicate small agricultural structures or tree clumps, but optical texture confirms predominantly rural vegetation. Evaluates whether model avoids hallucinating dense urban fabric while noting localized structure ambiguity."
+    },
+    {
+      "case_id": "case_002_water",
+      "category": "water",
+      "optical": "cases/austria_s2_optical.tif",
+      "sar": "cases/austria_s1_sar.tif",
+      "question": "Use the optical and SAR imagery together to identify water-covered regions.",
+      "expected_focus": "optical water appearance + SAR low-return/specular-reflection behavior where applicable",
+      "source": {
+        "dataset": "BigEarthNet-MM",
+        "optical_id": "S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57",
+        "sar_id": "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57",
+        "optical_sensor": "Sentinel-2A MSI L2A",
+        "sar_sensor": "Sentinel-1B IW GRDH",
+        "optical_acquisition": "2017-06-13T10:10:31Z",
+        "sar_acquisition": "2017-06-12T16:58:09Z",
+        "temporal_delta_hours": 17.2,
+        "license": "CDLA-Permissive",
+        "reference_grid": "EPSG:32633, 10m grid (120x120)",
+        "ground_truth_labels": [
+          "Arable land",
+          "Broad-leaved forest",
+          "Mixed forest",
+          "Pastures"
+        ]
+      },
+      "notes": "Tests water recognition on a non-aquatic rural scene. The model should check both optical reflectance (lack of water absorption/cyan signature) and SAR specular reflection (absence of flat dark specular radar returns) and conclude that open water bodies are absent."
+    },
+    {
+      "case_id": "case_003_vegetation",
+      "category": "vegetation",
+      "optical": "cases/austria_s2_optical.tif",
+      "sar": "cases/austria_s1_sar.tif",
+      "question": "Describe the dominant vegetation patterns using both optical and SAR evidence.",
+      "expected_focus": "optical vegetation appearance + SAR structural/volume-scattering cues",
+      "source": {
+        "dataset": "BigEarthNet-MM",
+        "optical_id": "S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57",
+        "sar_id": "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57",
+        "optical_sensor": "Sentinel-2A MSI L2A",
+        "sar_sensor": "Sentinel-1B IW GRDH",
+        "optical_acquisition": "2017-06-13T10:10:31Z",
+        "sar_acquisition": "2017-06-12T16:58:09Z",
+        "temporal_delta_hours": 17.2,
+        "license": "CDLA-Permissive",
+        "reference_grid": "EPSG:32633, 10m grid (120x120)",
+        "ground_truth_labels": [
+          "Arable land",
+          "Broad-leaved forest",
+          "Mixed forest",
+          "Pastures"
+        ]
+      },
+      "notes": "Evaluates optical greenness/crop reflectance combined with SAR volume-scattering signatures (elevated VH cross-polarization in forest canopy vs. lower returns over pastures and arable fields)."
+    },
+    {
+      "case_id": "case_004_complementary",
+      "category": "cross_modal_complementary",
+      "optical": "cases/austria_s2_optical.tif",
+      "sar": "cases/austria_s1_sar.tif",
+      "question": "What information does SAR provide that is less apparent in the optical image?",
+      "expected_focus": "explicit comparison between modalities",
+      "source": {
+        "dataset": "BigEarthNet-MM",
+        "optical_id": "S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57",
+        "sar_id": "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57",
+        "optical_sensor": "Sentinel-2A MSI L2A",
+        "sar_sensor": "Sentinel-1B IW GRDH",
+        "optical_acquisition": "2017-06-13T10:10:31Z",
+        "sar_acquisition": "2017-06-12T16:58:09Z",
+        "temporal_delta_hours": 17.2,
+        "license": "CDLA-Permissive",
+        "reference_grid": "EPSG:32633, 10m grid (120x120)",
+        "ground_truth_labels": [
+          "Arable land",
+          "Broad-leaved forest",
+          "Mixed forest",
+          "Pastures"
+        ]
+      },
+      "notes": "Explicit comparative cross-modal reasoning. Optical provides surface color, pigment absorption, and visible boundaries; SAR provides structural roughness, geometric volume scattering, and moisture sensitivity independent of optical illumination."
+    },
+    {
+      "case_id": "case_005_vv_vh_comparison",
+      "category": "vv_vh_comparison",
+      "optical": "cases/austria_s2_optical.tif",
+      "sar": "cases/austria_s1_sar.tif",
+      "question": "Compare VV and VH evidence for likely urban or vegetated regions.",
+      "expected_focus": "both polarization channels considered",
+      "source": {
+        "dataset": "BigEarthNet-MM",
+        "optical_id": "S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57",
+        "sar_id": "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57",
+        "optical_sensor": "Sentinel-2A MSI L2A",
+        "sar_sensor": "Sentinel-1B IW GRDH",
+        "optical_acquisition": "2017-06-13T10:10:31Z",
+        "sar_acquisition": "2017-06-12T16:58:09Z",
+        "temporal_delta_hours": 17.2,
+        "license": "CDLA-Permissive",
+        "reference_grid": "EPSG:32633, 10m grid (120x120)",
+        "ground_truth_labels": [
+          "Arable land",
+          "Broad-leaved forest",
+          "Mixed forest",
+          "Pastures"
+        ]
+      },
+      "notes": "Tests polarization channel analysis. Co-polarized VV responds strongly to surface roughness and vertical structures, while cross-polarized VH responds predominantly to multiple volume scattering inside complex canopy structures."
+    },
+    {
+      "case_id": "case_006_ambiguous",
+      "category": "ambiguous_scene",
+      "optical": "cases/austria_s2_optical.tif",
+      "sar": "cases/austria_s1_sar.tif",
+      "question": "Analyze this scene using both optical and SAR imagery. Can the boundary between cultivated fields and seminatural vegetation be unambiguously identified?",
+      "expected_focus": "model acknowledges uncertainty",
+      "source": {
+        "dataset": "BigEarthNet-MM",
+        "optical_id": "S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57",
+        "sar_id": "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57",
+        "optical_sensor": "Sentinel-2A MSI L2A",
+        "sar_sensor": "Sentinel-1B IW GRDH",
+        "optical_acquisition": "2017-06-13T10:10:31Z",
+        "sar_acquisition": "2017-06-12T16:58:09Z",
+        "temporal_delta_hours": 17.2,
+        "license": "CDLA-Permissive",
+        "reference_grid": "EPSG:32633, 10m grid (120x120)",
+        "ground_truth_labels": [
+          "Arable land",
+          "Broad-leaved forest",
+          "Mixed forest",
+          "Pastures"
+        ]
+      },
+      "notes": "Evaluates acknowledgment of uncertainty. Gradual transitions between pasture and mixed woodland create ambiguous boundaries where optical gradients and SAR speckle prevent dogmatic demarcation. Model must express appropriate epistemic uncertainty."
+    },
+    {
+      "case_id": "case_007_cross_crs_alignment",
+      "category": "cross_crs_alignment",
+      "optical": "cases/austria_s2_reprojected.tif",
+      "sar": "cases/austria_s1_sar.tif",
+      "question": "Describe the spatial relationship between optical reflectance and SAR backscatter after reprojection to the geographic reference grid.",
+      "expected_focus": "spatial alignment across distinct CRS definitions to optical reference grid",
+      "source": {
+        "dataset": "BigEarthNet-MM (Reprojected)",
+        "optical_id": "S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57_EPSG4326",
+        "sar_id": "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57_EPSG32633",
+        "optical_sensor": "Sentinel-2A MSI L2A (EPSG:4326)",
+        "sar_sensor": "Sentinel-1B IW GRDH (EPSG:32633)",
+        "optical_acquisition": "2017-06-13T10:10:31Z",
+        "sar_acquisition": "2017-06-12T16:58:09Z",
+        "license": "CDLA-Permissive",
+        "reference_grid": "EPSG:4326 (Optical Reference Grid), aligned SAR",
+        "ground_truth_labels": [
+          "Arable land",
+          "Broad-leaved forest",
+          "Mixed forest",
+          "Pastures"
+        ]
+      },
+      "notes": "Tests spatial alignment engine on real data when optical is in geographic coordinates (EPSG:4326) and SAR is in UTM projected coordinates (EPSG:32633). Validates target dimension matching and common grid alignment."
+    }
+  ]
+}
