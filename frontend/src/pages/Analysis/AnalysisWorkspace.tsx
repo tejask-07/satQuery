@@ -1,49 +1,107 @@
 import type { QueryResponse } from "../../api/query";
-import { MapContainer, TileLayer, Polygon, Circle } from "react-leaflet";
+
+import {
+  MapContainer,
+  TileLayer,
+  Polygon,
+  Circle,
+} from "react-leaflet";
+
+import type { AOIGeometry } from "../AOI/AOISelection";
+
 import "leaflet/dist/leaflet.css";
 import "./AnalysisWorkspace.css";
 
+interface AOIMetadata {
+  name: string;
+  center: [number, number];
+  area: string;
+  perimeter: string;
+}
+
 interface AnalysisWorkspaceProps {
   result: QueryResponse;
+
+  aoi?: AOIGeometry | null;
+
+  aoiMetadata?: AOIMetadata | null;
+
   onViewDetails: () => void;
+
   onViewLayers: () => void;
 }
 
+/* =========================================================
+   DEFAULT AOI
+   ========================================================= */
+
+const DEFAULT_AOI: AOIGeometry = {
+  type: "polygon",
+
+  coordinates: [
+    [19.32, 72.70],
+    [19.45, 72.92],
+    [19.30, 73.08],
+    [19.02, 73.12],
+    [18.78, 72.98],
+    [18.70, 72.78],
+    [18.88, 72.66],
+    [19.12, 72.61],
+  ],
+};
+
+/* =========================================================
+   MAIN COMPONENT
+   ========================================================= */
+
 function AnalysisWorkspace({
   result,
+  aoi,
+  aoiMetadata,
   onViewDetails,
   onViewLayers,
 }: AnalysisWorkspaceProps) {
-
-  const { plan } = result;
+  const { plan } =
+    result;
 
   const confidence =
     result.confidence != null
-      ? `${Math.round(result.confidence * 100)}%`
+      ? `${Math.round(
+          result.confidence *
+            100
+        )}%`
       : "—";
 
-  const formatDate = (date: string) => {
-    if (!date) return "—";
+  const formatDate = (
+    date: string
+  ) => {
+    if (!date) {
+      return "—";
+    }
 
-    const parsed = new Date(date);
+    const parsed =
+      new Date(date);
 
-    if (Number.isNaN(parsed.getTime())) {
+    if (
+      Number.isNaN(
+        parsed.getTime()
+      )
+    ) {
       return date;
     }
 
-    return parsed.toISOString().split("T")[0];
+    return parsed
+      .toISOString()
+      .split("T")[0];
   };
 
-  const statistics = result.statistics ?? {};
+  const statistics =
+    result.statistics ?? {};
 
-  /*
-   * TEMPORARY MOCK HISTOGRAM DATA
-   *
-   * This is still mock data.
-   *
-   * Later this array will come from the backend's
-   * actual NDVI distribution.
-   */
+  /* =======================================================
+     DISTRIBUTION
+     ======================================================= */
+
   const distribution = [
     8,
     13,
@@ -67,30 +125,26 @@ function AnalysisWorkspace({
     2,
   ];
 
-  /*
-   * TEMPORARY AOI
-   *
-   * Rough Mumbai-region polygon for visualization.
-   * Replace with backend-generated geometry later.
-   */
-  const aoi: [number, number][] = [
-    [19.32, 72.70],
-    [19.45, 72.92],
-    [19.30, 73.08],
-    [19.02, 73.12],
-    [18.78, 72.98],
-    [18.70, 72.78],
-    [18.88, 72.66],
-    [19.12, 72.61],
-  ];
+  /* =======================================================
+     ACTUAL AOI
+     ======================================================= */
 
-  /*
-   * TEMPORARY CHANGE LOCATIONS
-   *
-   * These are illustrative only.
-   * Real detections will come from the backend.
-   */
-  const changeAreas: [number, number][] = [
+  const activeAOI =
+    aoi ?? DEFAULT_AOI;
+
+  const aoiName =
+    aoiMetadata?.name ??
+    plan.target ??
+    "Selected Area";
+
+  /* =======================================================
+     CHANGE VISUALIZATION
+     ======================================================= */
+
+  const changeAreas: [
+    number,
+    number
+  ][] = [
     [19.28, 72.88],
     [19.20, 72.91],
     [19.10, 72.94],
@@ -133,7 +187,7 @@ function AnalysisWorkspace({
             </span>
 
             <span className="analysis-context-value">
-              {plan.target || "IDENTIFYING"}
+              {aoiName}
             </span>
 
             <span className="analysis-context-arrow">
@@ -151,13 +205,17 @@ function AnalysisWorkspace({
 
             <span className="analysis-context-value">
 
-              {formatDate(plan.time_start)}
+              {formatDate(
+                plan.time_start
+              )}
 
               <span className="date-arrow">
                 →
               </span>
 
-              {formatDate(plan.time_end)}
+              {formatDate(
+                plan.time_end
+              )}
 
             </span>
 
@@ -165,13 +223,21 @@ function AnalysisWorkspace({
 
         </div>
 
+
         <div className="analysis-header-actions">
 
-          <button type = "button" className="analysis-export">
+          <button
+            type="button"
+            className="analysis-export"
+          >
             EXPORT
           </button>
 
-          <button type="button" className="analysis-menu" aria-label="Open Menu">
+          <button
+            type="button"
+            className="analysis-menu"
+            aria-label="Open Menu"
+          >
             ☰
           </button>
 
@@ -194,10 +260,6 @@ function AnalysisWorkspace({
         <aside className="analysis-sidebar">
 
 
-          {/* ===================================================
-              QUERY
-              =================================================== */}
-
           <section className="analysis-section analysis-query-section">
 
             <div className="analysis-section-label">
@@ -205,21 +267,19 @@ function AnalysisWorkspace({
             </div>
 
             <p className="analysis-query">
-              {plan.task || "Analysis request"}
+              {plan.task ||
+                "Analysis request"}
             </p>
 
           </section>
 
-
-          {/* ===================================================
-              DATA SUMMARY
-              =================================================== */}
 
           <section className="analysis-section analysis-data">
 
             <div className="analysis-section-label">
               DATA SUMMARY
             </div>
+
 
             <div className="analysis-data-row">
 
@@ -228,8 +288,11 @@ function AnalysisWorkspace({
               </span>
 
               <span className="analysis-data-value">
-                {plan.modalities.length > 0
-                  ? plan.modalities.join(", ")
+                {plan.modalities
+                  ?.length
+                  ? plan.modalities.join(
+                      ", "
+                    )
                   : "—"}
               </span>
 
@@ -256,9 +319,31 @@ function AnalysisWorkspace({
               </span>
 
               <span className="analysis-data-value">
-                {formatDate(plan.time_start)}
+
+                {formatDate(
+                  plan.time_start
+                )}
+
                 {" → "}
-                {formatDate(plan.time_end)}
+
+                {formatDate(
+                  plan.time_end
+                )}
+
+              </span>
+
+            </div>
+
+
+            <div className="analysis-data-row">
+
+              <span className="analysis-data-label">
+                AOI
+              </span>
+
+              <span className="analysis-data-value">
+                {aoiMetadata?.area ??
+                  "—"}
               </span>
 
             </div>
@@ -271,19 +356,13 @@ function AnalysisWorkspace({
               </span>
 
               <span className="analysis-data-value">
-                2021: 6.3%
-                <br />
-                2025: 4.2%
+                —
               </span>
 
             </div>
 
           </section>
 
-
-          {/* ===================================================
-              INDICATORS
-              =================================================== */}
 
           <section className="analysis-section analysis-indicators">
 
@@ -292,9 +371,9 @@ function AnalysisWorkspace({
             </div>
 
             <div className="finding-analysis large">
-              {plan.analysis.length > 0
-                ? plan.analysis[0]
-                : "NDVI Difference"}
+              {plan.metric ||
+                plan.analysis?.[0] ||
+                "NDVI Difference"}
             </div>
 
 
@@ -303,17 +382,17 @@ function AnalysisWorkspace({
             </div>
 
             <div className="finding-analysis large">
-              NDBI Increase
+              {plan.output?.[1] ||
+                "NDBI Increase"}
             </div>
 
           </section>
-
 
         </aside>
 
 
         {/* ===================================================
-            CENTER — REAL SATELLITE MAP
+            CENTER — MAP
             =================================================== */}
 
         <section className="analysis-map-panel">
@@ -321,7 +400,10 @@ function AnalysisWorkspace({
           <div className="analysis-map">
 
             <MapContainer
-              center={[19.076, 72.8777]}
+              center={
+                aoiMetadata?.center ??
+                [19.076, 72.8777]
+              }
               zoom={10}
               zoomControl={false}
               attributionControl={true}
@@ -334,58 +416,123 @@ function AnalysisWorkspace({
               />
 
 
-              {/* AOI */}
+              {/* =================================================
+                  ACTUAL AOI
+                  ================================================= */}
 
-              <Polygon
-                positions={aoi}
-                pathOptions={{
-                  color: "#f5f1e9",
-                  weight: 2,
-                  fillColor: "#f5f1e9",
-                  fillOpacity: 0.03,
-                }}
-              />
-
-
-              {/* Mock change detections */}
-
-              {changeAreas.map((position, index) => (
-                <Circle
-                  key={`${position[0]}-${position[1]}-${index}`}
-                  center={position}
-                  radius={900}
+              {activeAOI.type ===
+                "polygon" && (
+                <Polygon
+                  positions={
+                    activeAOI.coordinates
+                  }
                   pathOptions={{
-                    color: "#e33420",
-                    weight: 0,
-                    fillColor: "#e33420",
-                    fillOpacity: 0.68,
+                    color:
+                      "#f5f1e9",
+                    weight: 3,
+                    fillColor:
+                      "#f5f1e9",
+                    fillOpacity:
+                      0.04,
                   }}
                 />
-              ))}
+              )}
+
+
+              {activeAOI.type ===
+                "rectangle" && (
+                <Polygon
+                  positions={
+                    activeAOI.coordinates
+                  }
+                  pathOptions={{
+                    color:
+                      "#f5f1e9",
+                    weight: 3,
+                    fillColor:
+                      "#f5f1e9",
+                    fillOpacity:
+                      0.04,
+                  }}
+                />
+              )}
+
+
+              {activeAOI.type ===
+                "circle" && (
+                <Circle
+                  center={
+                    activeAOI.center
+                  }
+                  radius={
+                    activeAOI.radius
+                  }
+                  pathOptions={{
+                    color:
+                      "#f5f1e9",
+                    weight: 3,
+                    fillColor:
+                      "#f5f1e9",
+                    fillOpacity:
+                      0.04,
+                  }}
+                />
+              )}
+
+
+              {/* =================================================
+                  TEMPORARY CHANGE LOCATIONS
+                  ================================================= */}
+
+              {changeAreas.map(
+                (
+                  position,
+                  index
+                ) => (
+                  <Circle
+                    key={`${position[0]}-${position[1]}-${index}`}
+                    center={
+                      position
+                    }
+                    radius={
+                      900
+                    }
+                    pathOptions={{
+                      color:
+                        "#e33420",
+                      weight: 0,
+                      fillColor:
+                        "#e33420",
+                      fillOpacity:
+                        0.68,
+                    }}
+                  />
+                )
+              )}
 
             </MapContainer>
 
 
-            {/* =================================================
-                MAP BADGE
-                ================================================= */}
-
             <div className="map-analysis-badge">
 
               <span>
-                NDVI CHANGE
+                {plan.metric ||
+                  "NDVI"}{" "}
+                CHANGE
               </span>
 
               <span>
-                2021 → 2025
+                {formatDate(
+                  plan.time_start
+                )}
+                {" → "}
+                {formatDate(
+                  plan.time_end
+                )}
               </span>
 
             </div>
 
-
-            {/* =================================================
-                MAP CONTROLS
-                ================================================= */}
 
             <div className="map-controls">
 
@@ -412,47 +559,51 @@ function AnalysisWorkspace({
             </div>
 
 
-            {/* =================================================
-                LEGEND
-                ================================================= */}
-
             <div className="map-legend">
 
               <div className="map-legend-title">
-                NDVI CHANGE
+                {plan.metric ||
+                  "NDVI"}{" "}
+                CHANGE
               </div>
 
               <div className="legend-item">
                 <span className="legend-swatch high" />
-                <span>High decrease</span>
+                <span>
+                  High decrease
+                </span>
               </div>
 
               <div className="legend-item">
                 <span className="legend-swatch moderate" />
-                <span>Moderate decrease</span>
+                <span>
+                  Moderate decrease
+                </span>
               </div>
 
               <div className="legend-item">
                 <span className="legend-swatch slight" />
-                <span>Slight decrease</span>
+                <span>
+                  Slight decrease
+                </span>
               </div>
 
               <div className="legend-item">
                 <span className="legend-swatch unchanged" />
-                <span>No change</span>
+                <span>
+                  No change
+                </span>
               </div>
 
               <div className="legend-item">
                 <span className="legend-swatch increase" />
-                <span>Increase</span>
+                <span>
+                  Increase
+                </span>
               </div>
 
             </div>
 
-
-            {/* =================================================
-                SCALE
-                ================================================= */}
 
             <div className="map-scale">
 
@@ -465,12 +616,16 @@ function AnalysisWorkspace({
             </div>
 
 
-            {/* =================================================
-                COORDINATES
-                ================================================= */}
-
             <div className="map-coordinates">
-              19.0760° N, 72.8777° E
+
+              {aoiMetadata
+                ? `${aoiMetadata.center[0].toFixed(
+                    4
+                  )}° N, ${aoiMetadata.center[1].toFixed(
+                    4
+                  )}° E`
+                : "—"}
+
             </div>
 
           </div>
@@ -485,10 +640,6 @@ function AnalysisWorkspace({
         <aside className="findings-panel">
 
 
-          {/* =================================================
-              FINDINGS
-              ================================================= */}
-
           <section className="findings-section">
 
             <div className="findings-label">
@@ -500,8 +651,10 @@ function AnalysisWorkspace({
 
               <div className="finding-stat-value">
                 {statistics.area_affected
-                  ? String(statistics.area_affected)
-                  : "18.4 km²"}
+                  ? String(
+                      statistics.area_affected
+                    )
+                  : "—"}
               </div>
 
               <div className="finding-stat-label">
@@ -515,8 +668,10 @@ function AnalysisWorkspace({
 
               <div className="finding-stat-value">
                 {statistics.average_ndvi_change
-                  ? String(statistics.average_ndvi_change)
-                  : "-23.7%"}
+                  ? String(
+                      statistics.average_ndvi_change
+                    )
+                  : "—"}
               </div>
 
               <div className="finding-stat-label">
@@ -541,37 +696,45 @@ function AnalysisWorkspace({
           </section>
 
 
-          {/* =================================================
-              DISTRIBUTION
-              ================================================= */}
-
           <section className="findings-section distribution-section">
 
             <div className="findings-label">
               CHANGE DISTRIBUTION
             </div>
 
-
             <div className="distribution-chart">
 
-              {distribution.map((height, index) => (
-                <span
-                  key={index}
-                  style={{
-                    height: `${height}%`,
-                  }}
-                />
-              ))}
+              {distribution.map(
+                (
+                  height,
+                  index
+                ) => (
+                  <span
+                    key={
+                      index
+                    }
+                    style={{
+                      height: `${height}%`,
+                    }}
+                  />
+                )
+              )}
 
             </div>
-
 
             <div className="distribution-axis">
-              <span>-1</span>
-              <span>0</span>
-              <span>1</span>
-            </div>
+              <span>
+                -1
+              </span>
 
+              <span>
+                0
+              </span>
+
+              <span>
+                1
+              </span>
+            </div>
 
             <div className="distribution-label">
               NDVI Change
@@ -580,13 +743,15 @@ function AnalysisWorkspace({
           </section>
 
 
-          {/* =================================================
-              VIEW DETAILS
-              ================================================= */}
-
           <div className="analysis-navigation-button">
 
-            <button type="button" className="view-details-button layers-navigation-button" onClick={onViewLayers}>
+            <button
+              type="button"
+              className="view-details-button layers-navigation-button"
+              onClick={
+                onViewLayers
+              }
+            >
               <span>
                 LAYERS
               </span>
@@ -594,10 +759,17 @@ function AnalysisWorkspace({
               <span>
                 →
               </span>
+
             </button>
 
-            <button type="button" className="view-details-button" onClick={onViewDetails}>
 
+            <button
+              type="button"
+              className="view-details-button"
+              onClick={
+                onViewDetails
+              }
+            >
               <span>
                 VIEW DETAILS
               </span>
@@ -605,11 +777,10 @@ function AnalysisWorkspace({
               <span>
                 →
               </span>
-              
+
             </button>
 
           </div>
-
 
         </aside>
 

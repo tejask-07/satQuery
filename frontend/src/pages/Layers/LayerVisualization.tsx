@@ -9,76 +9,51 @@ import {
 
 import type { QueryResponse } from "../../api/query";
 
+import type { AOIGeometry } from "../AOI/AOISelection";
+
 import "leaflet/dist/leaflet.css";
 import "./LayerVisualization.css";
 
+interface AOIMetadata {
+  name: string;
+  center: [number, number];
+  area: string;
+  perimeter: string;
+}
 
 interface LayersVisualizationProps {
   result: QueryResponse;
+
+  aoi?: AOIGeometry | null;
+
+  aoiMetadata?: AOIMetadata | null;
+
   onBack: () => void;
 }
-
 
 type IndexType =
   | "NDVI"
   | "NDWI"
   | "NDBI";
 
-
 type BaseLayer =
   | "trueColor"
   | "falseColor"
   | "dark";
-
 
 type VisualizationType =
   | "heatmap"
   | "classified"
   | "gradient";
 
+/* =========================================================
+   DEFAULT AOI
+   ========================================================= */
 
-function LayersVisualization({
-  // result,
-  onBack,
-}: LayersVisualizationProps) {
+const DEFAULT_AOI: AOIGeometry = {
+  type: "polygon",
 
-  const [selectedIndex, setSelectedIndex] =
-    useState<IndexType>("NDVI");
-
-  const [baseLayer, setBaseLayer] =
-    useState<BaseLayer>("trueColor");
-
-  const [visualization, setVisualization] =
-    useState<VisualizationType>("heatmap");
-
-  const [opacity, setOpacity] =
-    useState(80);
-
-  const [analysisLayers, setAnalysisLayers] =
-    useState({
-      ndviChange: true,
-      ndwiChange: false,
-      ndbiChange: false,
-      detectedRegions: true,
-      aoiBoundary: true,
-      confidenceMap: false,
-    });
-
-  const [reference, setReference] =
-    useState<"before" | "after">("after");
-
-
-  /*
-   * =========================================================
-   * AOI
-   * =========================================================
-   *
-   * Temporary geometry.
-   *
-   * Replace with backend AOI geometry later.
-   */
-
-  const aoi: [number, number][] = [
+  coordinates: [
     [19.32, 72.70],
     [19.45, 72.92],
     [19.30, 73.08],
@@ -87,16 +62,86 @@ function LayersVisualization({
     [18.70, 72.78],
     [18.88, 72.66],
     [19.12, 72.61],
-  ];
+  ],
+};
 
+/* =========================================================
+   COMPONENT
+   ========================================================= */
 
-  /*
-   * =========================================================
-   * TEMPORARY INDEX VISUALIZATION
-   * =========================================================
-   */
+function LayersVisualization({
+  result,
+  aoi,
+  aoiMetadata,
+  onBack,
+}: LayersVisualizationProps) {
+  const [
+    selectedIndex,
+    setSelectedIndex,
+  ] = useState<IndexType>(
+    "NDVI"
+  );
 
-  const indexAreas: [number, number][] = [
+  const [
+    baseLayer,
+    setBaseLayer,
+  ] = useState<BaseLayer>(
+    "trueColor"
+  );
+
+  const [
+    visualization,
+    setVisualization,
+  ] =
+    useState<VisualizationType>(
+      "heatmap"
+    );
+
+  const [
+    opacity,
+    setOpacity,
+  ] = useState(80);
+
+  const [
+    analysisLayers,
+    setAnalysisLayers,
+  ] = useState({
+    ndviChange: true,
+    ndwiChange: false,
+    ndbiChange: false,
+    detectedRegions: true,
+    aoiBoundary: true,
+    confidenceMap: false,
+  });
+
+  const [
+    reference,
+    setReference,
+  ] =
+    useState<
+      "before" | "after"
+    >("after");
+
+  /* =======================================================
+     ACTUAL AOI
+     ======================================================= */
+
+  const activeAOI =
+    aoi ?? DEFAULT_AOI;
+
+  // const aoiName =
+  //   aoiMetadata?.name ??
+  //   result.plan.target ??
+  //   "Selected Area";
+
+  /* =======================================================
+     TEMPORARY INDEX VISUALIZATION
+     ======================================================= */
+
+  const indexAreas: [
+    number,
+    number
+  ][] = [
     [19.28, 72.88],
     [19.20, 72.91],
     [19.10, 72.94],
@@ -108,89 +153,93 @@ function LayersVisualization({
     [19.04, 72.82],
   ];
 
-
-  /*
-   * =========================================================
-   * TOGGLE
-   * =========================================================
-   */
+  /* =======================================================
+     TOGGLE
+     ======================================================= */
 
   const toggleLayer = (
     layer: keyof typeof analysisLayers
   ) => {
-
-    setAnalysisLayers((current) => ({
-      ...current,
-      [layer]: !current[layer],
-    }));
-
+    setAnalysisLayers(
+      (current) => ({
+        ...current,
+        [layer]:
+          !current[layer],
+      })
+    );
   };
 
-
-  /*
-   * =========================================================
-   * BASE MAP
-   * =========================================================
-   */
+  /* =======================================================
+     BASE MAP
+     ======================================================= */
 
   const getTileUrl = () => {
-
-    if (baseLayer === "dark") {
+    if (
+      baseLayer ===
+      "dark"
+    ) {
       return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-    }
-
-    if (baseLayer === "falseColor") {
-      return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
     }
 
     return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
   };
 
-
-  /*
-   * =========================================================
-   * INDEX INFO
-   * =========================================================
-   */
+  /* =======================================================
+     INDEX INFO
+     ======================================================= */
 
   const indexInfo = {
-
     NDVI: {
-      name: "NDVI (Normalized Difference Vegetation Index)",
+      name:
+        "NDVI (Normalized Difference Vegetation Index)",
+
       description:
         "Indicates vegetation health and density using near-infrared and red reflectance.",
-      range: "-1 to 1",
+
+      range:
+        "-1 to 1",
+
       interpretation:
         "High values represent healthy vegetation.",
     },
 
     NDWI: {
-      name: "NDWI (Normalized Difference Water Index)",
+      name:
+        "NDWI (Normalized Difference Water Index)",
+
       description:
         "Highlights water content and surface water features using spectral reflectance.",
-      range: "-1 to 1",
+
+      range:
+        "-1 to 1",
+
       interpretation:
         "Higher values generally represent water-rich surfaces.",
     },
 
     NDBI: {
-      name: "NDBI (Normalized Difference Built-up Index)",
+      name:
+        "NDBI (Normalized Difference Built-up Index)",
+
       description:
         "Highlights built-up and urban surfaces using shortwave infrared and near-infrared reflectance.",
-      range: "-1 to 1",
+
+      range:
+        "-1 to 1",
+
       interpretation:
         "Higher values generally represent built-up surfaces.",
     },
-
   };
 
-
   const currentInfo =
-    indexInfo[selectedIndex];
-
+    indexInfo[
+      selectedIndex
+    ];
 
   return (
     <main className="layers-workspace">
+
 
       {/* =====================================================
           LEFT — LAYERS
@@ -198,7 +247,13 @@ function LayersVisualization({
 
       <aside className="layers-sidebar">
 
-        <button type="button" className="layers-back-button" onClick={onBack}>
+        <button
+          type="button"
+          className="layers-back-button"
+          onClick={
+            onBack
+          }
+        >
           ← ANALYSIS
         </button>
 
@@ -223,9 +278,14 @@ function LayersVisualization({
             <input
               type="radio"
               name="base-layer"
-              checked={baseLayer === "trueColor"}
+              checked={
+                baseLayer ===
+                "trueColor"
+              }
               onChange={() =>
-                setBaseLayer("trueColor")
+                setBaseLayer(
+                  "trueColor"
+                )
               }
             />
 
@@ -241,9 +301,14 @@ function LayersVisualization({
             <input
               type="radio"
               name="base-layer"
-              checked={baseLayer === "falseColor"}
+              checked={
+                baseLayer ===
+                "falseColor"
+              }
               onChange={() =>
-                setBaseLayer("falseColor")
+                setBaseLayer(
+                  "falseColor"
+                )
               }
             />
 
@@ -259,9 +324,14 @@ function LayersVisualization({
             <input
               type="radio"
               name="base-layer"
-              checked={baseLayer === "dark"}
+              checked={
+                baseLayer ===
+                "dark"
+              }
               onChange={() =>
-                setBaseLayer("dark")
+                setBaseLayer(
+                  "dark"
+                )
               }
             />
 
@@ -289,9 +359,13 @@ function LayersVisualization({
 
             <input
               type="checkbox"
-              checked={analysisLayers.ndviChange}
+              checked={
+                analysisLayers.ndviChange
+              }
               onChange={() =>
-                toggleLayer("ndviChange")
+                toggleLayer(
+                  "ndviChange"
+                )
               }
             />
 
@@ -306,9 +380,13 @@ function LayersVisualization({
 
             <input
               type="checkbox"
-              checked={analysisLayers.ndwiChange}
+              checked={
+                analysisLayers.ndwiChange
+              }
               onChange={() =>
-                toggleLayer("ndwiChange")
+                toggleLayer(
+                  "ndwiChange"
+                )
               }
             />
 
@@ -323,9 +401,13 @@ function LayersVisualization({
 
             <input
               type="checkbox"
-              checked={analysisLayers.ndbiChange}
+              checked={
+                analysisLayers.ndbiChange
+              }
               onChange={() =>
-                toggleLayer("ndbiChange")
+                toggleLayer(
+                  "ndbiChange"
+                )
               }
             />
 
@@ -340,9 +422,13 @@ function LayersVisualization({
 
             <input
               type="checkbox"
-              checked={analysisLayers.detectedRegions}
+              checked={
+                analysisLayers.detectedRegions
+              }
               onChange={() =>
-                toggleLayer("detectedRegions")
+                toggleLayer(
+                  "detectedRegions"
+                )
               }
             />
 
@@ -357,9 +443,13 @@ function LayersVisualization({
 
             <input
               type="checkbox"
-              checked={analysisLayers.aoiBoundary}
+              checked={
+                analysisLayers.aoiBoundary
+              }
               onChange={() =>
-                toggleLayer("aoiBoundary")
+                toggleLayer(
+                  "aoiBoundary"
+                )
               }
             />
 
@@ -374,9 +464,13 @@ function LayersVisualization({
 
             <input
               type="checkbox"
-              checked={analysisLayers.confidenceMap}
+              checked={
+                analysisLayers.confidenceMap
+              }
               onChange={() =>
-                toggleLayer("confidenceMap")
+                toggleLayer(
+                  "confidenceMap"
+                )
               }
             />
 
@@ -405,14 +499,19 @@ function LayersVisualization({
             <input
               type="radio"
               name="reference"
-              checked={reference === "before"}
+              checked={
+                reference ===
+                "before"
+              }
               onChange={() =>
-                setReference("before")
+                setReference(
+                  "before"
+                )
               }
             />
 
             <span>
-              Before (2021)
+              Before ({result.plan.time_start?.slice(0, 4) || "2021"})
             </span>
 
           </label>
@@ -423,14 +522,19 @@ function LayersVisualization({
             <input
               type="radio"
               name="reference"
-              checked={reference === "after"}
+              checked={
+                reference ===
+                "after"
+              }
               onChange={() =>
-                setReference("after")
+                setReference(
+                  "after"
+                )
               }
             />
 
             <span>
-              After (2025)
+              After ({result.plan.time_end?.slice(0, 4) || "2025"})
             </span>
 
           </label>
@@ -470,27 +574,33 @@ function LayersVisualization({
             INDEX
           </div>
 
-
           <div className="index-tabs">
 
-            {(["NDVI", "NDWI", "NDBI"] as IndexType[]).map(
+            {(
+              [
+                "NDVI",
+                "NDWI",
+                "NDBI",
+              ] as IndexType[]
+            ).map(
               (index) => (
-
                 <button
                   key={index}
                   type="button"
                   className={
-                    selectedIndex === index
+                    selectedIndex ===
+                    index
                       ? "index-tab active"
                       : "index-tab"
                   }
                   onClick={() =>
-                    setSelectedIndex(index)
+                    setSelectedIndex(
+                      index
+                    )
                   }
                 >
                   {index}
                 </button>
-
               )
             )}
 
@@ -501,9 +611,21 @@ function LayersVisualization({
 
         <div className="layers-map-subtitle">
 
-          {selectedIndex} CHANGE
+          {selectedIndex}
           {" "}
-          (2021 → 2025)
+          CHANGE
+          {" "}
+          (
+          {result.plan.time_start?.slice(
+            0,
+            4
+          ) || "2021"}
+          {" → "}
+          {result.plan.time_end?.slice(
+            0,
+            4
+          ) || "2025"}
+          )
 
         </div>
 
@@ -511,7 +633,10 @@ function LayersVisualization({
         <div className="layers-map">
 
           <MapContainer
-            center={[19.076, 72.8777]}
+            center={
+              aoiMetadata?.center ??
+              [19.076, 72.8777]
+            }
             zoom={10}
             zoomControl={true}
             attributionControl={true}
@@ -524,68 +649,154 @@ function LayersVisualization({
             />
 
 
-            {/* AOI */}
+            {/* =================================================
+                ACTUAL AOI
+                ================================================= */}
 
-            {analysisLayers.aoiBoundary && (
-              <Polygon
-                positions={aoi}
-                pathOptions={{
-                  color: "#f5f1e9",
-                  weight: 2,
-                  fillOpacity: 0.02,
-                }}
-              />
-            )}
-
-
-            {/* Index visualization */}
-
-            {analysisLayers.ndviChange &&
-              indexAreas.map((position, index) => (
-
-                <Circle
-                  key={`${position[0]}-${position[1]}-${index}`}
-                  center={position}
-                  radius={700 + (index % 3) * 250}
+            {analysisLayers.aoiBoundary &&
+              activeAOI.type ===
+                "polygon" && (
+                <Polygon
+                  positions={
+                    activeAOI.coordinates
+                  }
                   pathOptions={{
                     color:
-                      visualization === "classified"
-                        ? "#f0c52e"
-                        : "#8dbb4f",
-                    weight: 0,
-                    fillColor:
-                      visualization === "gradient"
-                        ? "#d7e86b"
-                        : "#8dbb4f",
+                      "#f5f1e9",
+                    weight: 2,
                     fillOpacity:
-                      opacity / 100,
+                      0.02,
                   }}
                 />
+              )}
 
-              ))}
+
+            {analysisLayers.aoiBoundary &&
+              activeAOI.type ===
+                "rectangle" && (
+                <Polygon
+                  positions={
+                    activeAOI.coordinates
+                  }
+                  pathOptions={{
+                    color:
+                      "#f5f1e9",
+                    weight: 2,
+                    fillOpacity:
+                      0.02,
+                  }}
+                />
+              )}
 
 
-            {/* Detected regions */}
+            {analysisLayers.aoiBoundary &&
+              activeAOI.type ===
+                "circle" && (
+                <Circle
+                  center={
+                    activeAOI.center
+                  }
+                  radius={
+                    activeAOI.radius
+                  }
+                  pathOptions={{
+                    color:
+                      "#f5f1e9",
+                    weight: 2,
+                    fillOpacity:
+                      0.02,
+                  }}
+                />
+              )}
 
-            {analysisLayers.detectedRegions &&
-              indexAreas.slice(0, 6).map(
-                (position, index) => (
 
+            {/* =================================================
+                INDEX VISUALIZATION
+                ================================================= */}
+
+            {analysisLayers.ndviChange &&
+              indexAreas.map(
+                (
+                  position,
+                  index
+                ) => (
                   <Circle
-                    key={`region-${index}`}
-                    center={position}
-                    radius={260}
+                    key={`${position[0]}-${position[1]}-${index}`}
+                    center={
+                      position
+                    }
+                    radius={
+                      700 +
+                      (index %
+                        3) *
+                        250
+                    }
                     pathOptions={{
-                      color: "#d94228",
+                      color:
+                        visualization ===
+                        "classified"
+                          ? "#f0c52e"
+                          : "#8dbb4f",
+
                       weight: 0,
-                      fillColor: "#d94228",
+
+                      fillColor:
+                        visualization ===
+                        "gradient"
+                          ? "#d7e86b"
+                          : "#8dbb4f",
+
                       fillOpacity:
-                        Math.min(opacity / 100, 0.75),
+                        opacity /
+                        100,
                     }}
                   />
-
                 )
               )}
+
+
+            {/* =================================================
+                DETECTED REGIONS
+                ================================================= */}
+
+            {analysisLayers.detectedRegions &&
+              indexAreas
+                .slice(
+                  0,
+                  6
+                )
+                .map(
+                  (
+                    position,
+                    index
+                  ) => (
+                    <Circle
+                      key={`region-${index}`}
+                      center={
+                        position
+                      }
+                      radius={
+                        260
+                      }
+                      pathOptions={{
+                        color:
+                          "#d94228",
+
+                        weight: 0,
+
+                        fillColor:
+                          "#d94228",
+
+                        fillOpacity:
+                          Math.min(
+                            opacity /
+                              100,
+                            0.75
+                          ),
+                      }}
+                    />
+                  )
+                )}
 
           </MapContainer>
 
@@ -597,19 +808,22 @@ function LayersVisualization({
             </span>
 
             <span>
-              {reference === "after"
-                ? "2025"
-                : "2021"}
+              {reference ===
+              "after"
+                ? result.plan.time_end?.slice(
+                    0,
+                    4
+                  ) || "2025"
+                : result.plan.time_start?.slice(
+                    0,
+                    4
+                  ) || "2021"}
             </span>
 
           </div>
 
         </div>
 
-
-        {/* ===================================================
-            COLOR SCALE
-            =================================================== */}
 
         <div className="index-scale">
 
@@ -640,26 +854,22 @@ function LayersVisualization({
             INDEX INFO
           </div>
 
-
           <h2>
             {currentInfo.name}
           </h2>
-
 
           <p>
             {currentInfo.description}
           </p>
 
-
           <p>
-            Range: {currentInfo.range}
+            Range:{" "}
+            {currentInfo.range}
           </p>
-
 
           <p>
             {currentInfo.interpretation}
           </p>
-
 
           <button
             type="button"
@@ -670,10 +880,6 @@ function LayersVisualization({
 
         </section>
 
-
-        {/* ===================================================
-            VISUALIZATION
-            =================================================== */}
 
         <section className="visualization-section">
 
@@ -687,9 +893,14 @@ function LayersVisualization({
             <input
               type="radio"
               name="visualization"
-              checked={visualization === "heatmap"}
+              checked={
+                visualization ===
+                "heatmap"
+              }
               onChange={() =>
-                setVisualization("heatmap")
+                setVisualization(
+                  "heatmap"
+                )
               }
             />
 
@@ -705,9 +916,14 @@ function LayersVisualization({
             <input
               type="radio"
               name="visualization"
-              checked={visualization === "classified"}
+              checked={
+                visualization ===
+                "classified"
+              }
               onChange={() =>
-                setVisualization("classified")
+                setVisualization(
+                  "classified"
+                )
               }
             />
 
@@ -723,9 +939,14 @@ function LayersVisualization({
             <input
               type="radio"
               name="visualization"
-              checked={visualization === "gradient"}
+              checked={
+                visualization ===
+                "gradient"
+              }
               onChange={() =>
-                setVisualization("gradient")
+                setVisualization(
+                  "gradient"
+                )
               }
             />
 
@@ -735,10 +956,6 @@ function LayersVisualization({
 
           </label>
 
-
-          {/* =================================================
-              OPACITY
-              ================================================= */}
 
           <div className="opacity-control">
 
@@ -754,15 +971,21 @@ function LayersVisualization({
 
             </div>
 
-
             <input
               type="range"
               min="0"
               max="100"
-              value={opacity}
-              onChange={(event) =>
+              value={
+                opacity
+              }
+              onChange={(
+                event
+              ) =>
                 setOpacity(
-                  Number(event.target.value)
+                  Number(
+                    event.target
+                      .value
+                  )
                 )
               }
             />
@@ -776,6 +999,5 @@ function LayersVisualization({
     </main>
   );
 }
-
 
 export default LayersVisualization;
