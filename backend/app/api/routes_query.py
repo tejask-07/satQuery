@@ -624,9 +624,11 @@ def sanitize_optical_sar_metadata(data: Any) -> Any:
             # If value is a direct path string or Path object, omit
             if _is_filesystem_path(v):
                 continue
-            # If key is "bands" and list contains path strings, omit
-            if k == "bands" and isinstance(v, (list, tuple)):
-                if any(_is_filesystem_path(item) for item in v):
+            # If key is "bands" and contains path strings, omit
+            if k == "bands":
+                if isinstance(v, (list, tuple)) and any(_is_filesystem_path(item) for item in v):
+                    continue
+                if isinstance(v, dict) and any(_is_filesystem_path(item) for item in v.values()):
                     continue
             sanitized[k] = sanitize_optical_sar_metadata(v)
         return sanitized
@@ -793,6 +795,96 @@ def _build_optical_sar_api_response(
     )
 
 
+def _build_single_image_vqa_api_response(
+    plan: QueryPlan,
+    query: str,
+    vqa_res: dict,
+    context: Optional[dict] = None,
+) -> AnalysisResult:
+    """
+    Format single-image VQA specialist execution output into the unified AnalysisResult schema,
+    adhering strictly to the standardized evidence, confidence, and execution trace contract.
+    """
+    context = context or {}
+    resolved_modality = (
+        vqa_res.get("modality")
+        or (context.get("modality") if context.get("modality") and context.get("modality") != "unknown" else None)
+        or ("sar" if context.get("sar_image_id") or context.get("sar_path") else None)
+        or ("optical" if context.get("optical_image_id") or context.get("optical_path") else None)
+        or (plan.modalities[0] if plan.modalities else "unknown")
+    )
+    if isinstance(resolved_modality, str):
+        resolved_modality = resolved_modality.strip().lower()
+    else:
+        resolved_modality = "unknown"
+
+    # Execution trace reflecting complete agent lifecycle
+    trace = [
+        "Natural-language query received for visual inspection",
+        "Natural-language query classified as single-image VQA",
+        "Execution plan created for single-image VQA",
+        f"Single image resolved (modality: {resolved_modality})" if resolved_modality != "unknown" else "Single image resolved",
+        "VQA specialist executed with grounded prompt",
+        "VQA response formatted",
+    ]
+
+    stats = {
+        "task": "single_image_vqa",
+        "question": vqa_res.get("question") or query,
+        "answer": vqa_res.get("answer"),
+        "modality": resolved_modality,
+        "confidence": None,
+    }
+
+    # Structured evidence contract (Phase 2)
+    raw_evidence = vqa_res.get("evidence") or context.get("evidence")
+    if raw_evidence:
+        if isinstance(raw_evidence, list):
+            sanitized_list = sanitize_optical_sar_metadata(raw_evidence)
+            evidence = []
+            for item in sanitized_list:
+                if isinstance(item, dict):
+                    copied = dict(item)
+                    if "evidence_used" not in copied:
+                        copied["evidence_used"] = True
+                    evidence.append(copied)
+                else:
+                    evidence.append(item)
+        elif isinstance(raw_evidence, dict):
+            sanitized_dict = sanitize_optical_sar_metadata(raw_evidence)
+            evidence_item = {
+                "source": sanitized_dict.get("source", "single_image_observation"),
+                "modality": sanitized_dict.get("modality", resolved_modality),
+                "evidence_used": sanitized_dict.get("evidence_used", True),
+                **{k: v for k, v in sanitized_dict.items() if k not in ("source", "modality", "evidence_used")},
+            }
+            evidence = [evidence_item]
+        else:
+            evidence = [{
+                "source": "single_image_observation",
+                "modality": resolved_modality,
+                "evidence_used": True,
+            }]
+    else:
+        evidence_item = {
+            "source": "single_image_observation",
+            "modality": resolved_modality,
+            "evidence_used": False,
+        }
+        evidence = [evidence_item]
+
+    return AnalysisResult(
+        status="success",
+        answer=vqa_res.get("answer"),
+        confidence=None,
+        plan=plan.model_dump(),
+        statistics=stats,
+        layers=[],
+        evidence=evidence,
+        execution_trace=trace,
+    )
+
+
 # ============================================================
 # API ENDPOINT
 # ============================================================
@@ -924,6 +1016,44 @@ def process_query(
             opt_path=Path(resolved_opt_path) if resolved_opt_path else None,
         )
 
+    # --------------------------------------------------------
+    # SINGLE-IMAGE VQA ROUTE
+    # --------------------------------------------------------
+    if plan.task == "single_image_vqa":
+        load_env_file(BACKEND_DIR / ".env")
+
+        context = {
+            "query": request.query,
+            "question": request.query,
+            "aoi": plan.aoi or getattr(request, "aoi", None),
+            "task": plan.task,
+            "modality": (plan.modalities[0] if plan.modalities else "unknown"),
+            "modalities": plan.modalities,
+        }
+
+        if request.image_ids and len(request.image_ids) > 0:
+            context["image_ids"] = request.image_ids
+            context["image_id"] = request.image_ids[0]
+        if getattr(request, "optical_image_id", None):
+            context["optical_image_id"] = request.optical_image_id
+            context["image_id"] = request.optical_image_id
+        if getattr(request, "sar_image_id", None):
+            context["sar_image_id"] = request.sar_image_id
+            context["image_id"] = request.sar_image_id
+
+        execution_results = execute_plan(
+            tools,
+            context=context,
+        )
+
+        vqa_res = execution_results.get("single_image_vqa", {})
+        return _build_single_image_vqa_api_response(
+            plan=plan,
+            query=request.query,
+            vqa_res=vqa_res,
+            context=context,
+        )
+
     # ========================================================
     # Pass target, metric, task in context so executor tools know primary metric
     target_metric = (
@@ -940,6 +1070,7 @@ def process_query(
             "time_end": plan.time_end,
             "aoi": plan.aoi,
             "metric": plan.metric or target_metric,
+            "explicit_metric": getattr(plan, "explicit_metric", None),
             "target": plan.target,
             "task": plan.task,
             "temporal_mode": getattr(plan, "temporal_mode", "bi_temporal"),
@@ -1293,8 +1424,8 @@ def process_query(
             )
 
         # Fallback: if the executor did not attach
-        # visualization metadata, create one here.
-        elif change_map is not None:
+        # visualization metadata, create one here if valid pixels exist.
+        elif change_map is not None and change_result.get("valid_pixels", 0) > 0:
 
             filename = (
                 f"{plan.target or 'image'}_"
@@ -1606,19 +1737,19 @@ def process_query(
         },
         "change": {
             "delta_ndvi": {
-                "url": _safe_vis_url((all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("visualization", {}).get("filename")),
-                "classified_url": _safe_vis_url((all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("visualization", {}).get("classified_filename")),
-                "bounds": (all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("bounds") or visualization_bounds,
+                "url": _safe_vis_url(((all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("visualization") or {}).get("filename")),
+                "classified_url": _safe_vis_url(((all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("visualization") or {}).get("classified_filename")),
+                "bounds": ((all_chg.get("NDVI") or all_chg.get("ndvi") or {}).get("bounds")) or visualization_bounds,
             },
             "delta_ndwi": {
-                "url": _safe_vis_url((all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("visualization", {}).get("filename")),
-                "classified_url": _safe_vis_url((all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("visualization", {}).get("classified_filename")),
-                "bounds": (all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("bounds") or visualization_bounds,
+                "url": _safe_vis_url(((all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("visualization") or {}).get("filename")),
+                "classified_url": _safe_vis_url(((all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("visualization") or {}).get("classified_filename")),
+                "bounds": ((all_chg.get("NDWI") or all_chg.get("ndwi") or {}).get("bounds")) or visualization_bounds,
             },
             "delta_ndbi": {
-                "url": _safe_vis_url((all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("visualization", {}).get("filename")),
-                "classified_url": _safe_vis_url((all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("visualization", {}).get("classified_filename")),
-                "bounds": (all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("bounds") or visualization_bounds,
+                "url": _safe_vis_url(((all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("visualization") or {}).get("filename")),
+                "classified_url": _safe_vis_url(((all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("visualization") or {}).get("classified_filename")),
+                "bounds": ((all_chg.get("NDBI") or all_chg.get("ndbi") or {}).get("bounds")) or visualization_bounds,
             },
         },
         "quality": {
@@ -1849,7 +1980,10 @@ def process_query(
     statistics["interpretation"] = interpretation
     execution_trace.append("Phase 5C/6/7/8 Structured interpretation generated")
 
-    grounded_explanation = interpretation.get("summary") or explanation
+    if change_result and change_result.get("valid_pixels", 0) == 0:
+        grounded_explanation = explanation
+    else:
+        grounded_explanation = interpretation.get("summary") or explanation
 
     # ========================================================
     # 11. P4 VLM
@@ -1889,19 +2023,23 @@ def process_query(
     evidence_package["calibration"] = calibration
     p2_response["evidence_package"] = evidence_package
 
-    vlm_answer = generate_vlm_answer(
-        request=request,
-        p2_response=p2_response,
-    )
-
-    if vlm_answer:
-        execution_trace.append(
-            "P4 VLM inference completed"
-        )
+    if change_result and change_result.get("valid_pixels", 0) == 0:
+        vlm_answer = None
+        execution_trace.append("Zero valid pixels: using grounded explanation")
     else:
-        execution_trace.append(
-            "P4 VLM unavailable; using backend explanation"
+        vlm_answer = generate_vlm_answer(
+            request=request,
+            p2_response=p2_response,
         )
+
+        if vlm_answer:
+            execution_trace.append(
+                "P4 VLM inference completed"
+            )
+        else:
+            execution_trace.append(
+                "P4 VLM unavailable; using backend explanation"
+            )
 
     # ========================================================
     # 12. Final API response
@@ -1918,20 +2056,20 @@ def process_query(
         answer=final_answer,
         confidence=0.9,
         plan=plan.model_dump(),
-        statistics=statistics,
+        statistics=sanitize_optical_sar_metadata(statistics),
         layers=layers,
         layer_package=layer_package,
         multi_index_evidence=multi_index_evidence,
         candidates=candidates,
-        candidate_package=candidate_package,
+        candidate_package=sanitize_optical_sar_metadata(candidate_package),
         interpretation=interpretation,
-        spatial_analysis=spatial_analysis,
-        temporal_analysis=temporal_analysis,
-        calibration=calibration,
-        evidence=evidence,
+        spatial_analysis=sanitize_optical_sar_metadata(spatial_analysis),
+        temporal_analysis=sanitize_optical_sar_metadata(temporal_analysis),
+        calibration=sanitize_optical_sar_metadata(calibration),
+        evidence=sanitize_optical_sar_metadata(evidence),
         execution_trace=execution_trace,
         visualization_url=visualization_url,
         classified_visualization_url=classified_visualization_url,
         bounds=visualization_bounds,
-        evidence_package=evidence_package,
+        evidence_package=sanitize_optical_sar_metadata(evidence_package),
     )

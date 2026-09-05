@@ -19,6 +19,10 @@ from app.remote_sensing.multimodal.pairing import (
     find_optical_sar_pair,
     PairingErrorType,
 )
+from app.remote_sensing.multimodal.ingestion import (
+    resolve_image_reference,
+    inspect_raster_modality,
+)
 
 
 
@@ -422,10 +426,7 @@ def _save_change_map_visualization(
     )
 
     if not np.any(valid_mask):
-        raise ValueError(
-            "Cannot create change-map visualization: "
-            "no valid pixels."
-        )
+        return None
 
     valid_values = change_map[
         valid_mask
@@ -1625,8 +1626,18 @@ def execute_plan(
 
         elif tool_name == "detect_change":
 
+            # If an explicit single metric is requested, do not auto-calculate other indices
+            explicit_metric = (
+                context.get("explicit_metric")
+                or (context.get("metric") if context.get("metric") and context.get("target") is None else None)
+            )
+            if explicit_metric:
+                explicit_metric = str(explicit_metric).lower()
+
+            should_auto_calc_all = (explicit_metric is None)
+
             # Ensure all three temporal indices (NDVI, NDWI, NDBI) are calculated
-            # so the full scientific layer package is available for every temporal analysis
+            # when appropriate so the full scientific layer package is available
             if imagery_result is not None and len(imagery_result.get("images", [])) >= 2:
                 before_img, after_img = _get_images(imagery_result)
                 b_bands = before_img.get("bands", {})
@@ -1637,7 +1648,7 @@ def execute_plan(
                 m_a = _read_raster(m_a_path) if m_a_path else None
 
                 # 1. NDVI
-                if "calculate_temporal_ndvi" not in results and b_bands.get("red") and b_bands.get("nir") and a_bands.get("red") and a_bands.get("nir"):
+                if (should_auto_calc_all or explicit_metric == "ndvi") and "calculate_temporal_ndvi" not in results and b_bands.get("red") and b_bands.get("nir") and a_bands.get("red") and a_bands.get("nir"):
                     try:
                         ndvi_tool = get_tool("calculate_temporal_ndvi")
                         r_b = _read_raster(b_bands["red"])
@@ -1659,7 +1670,7 @@ def execute_plan(
                         print(f"[EXECUTOR WARNING] Auto-calc temporal NDVI: {exc}")
 
                 # 2. NDWI
-                if "calculate_temporal_ndwi" not in results and b_bands.get("green") and b_bands.get("nir") and a_bands.get("green") and a_bands.get("nir"):
+                if (should_auto_calc_all or explicit_metric == "ndwi") and "calculate_temporal_ndwi" not in results and b_bands.get("green") and b_bands.get("nir") and a_bands.get("green") and a_bands.get("nir"):
                     try:
                         ndwi_tool = get_tool("calculate_temporal_ndwi")
                         g_b = _read_raster(b_bands["green"])
@@ -1681,7 +1692,7 @@ def execute_plan(
                         print(f"[EXECUTOR WARNING] Auto-calc temporal NDWI: {exc}")
 
                 # 3. NDBI
-                if "calculate_temporal_ndbi" not in results and b_bands.get("swir") and b_bands.get("nir") and a_bands.get("swir") and a_bands.get("nir"):
+                if (should_auto_calc_all or explicit_metric == "ndbi") and "calculate_temporal_ndbi" not in results and b_bands.get("swir") and b_bands.get("nir") and a_bands.get("swir") and a_bands.get("nir"):
                     try:
                         ndbi_tool = get_tool("calculate_temporal_ndbi")
                         s_b = _read_raster(b_bands["swir"])
@@ -1747,14 +1758,19 @@ def execute_plan(
 
                             c_map = chg_res.get("change_map")
                             if c_map is not None:
-                                vis_chg = _save_change_map_visualization(
-                                    change_map=c_map,
-                                    prefix=f"{idx_name}_change",
-                                    source_raster_path=src_path,
-                                    threshold=threshold,
-                                )
-                                chg_res["visualization"] = vis_chg
-                                chg_res["bounds"] = vis_chg.get("bounds")
+                                try:
+                                    vis_chg = _save_change_map_visualization(
+                                        change_map=c_map,
+                                        prefix=f"{idx_name}_change",
+                                        source_raster_path=src_path,
+                                        threshold=threshold,
+                                    )
+                                    chg_res["visualization"] = vis_chg
+                                    chg_res["bounds"] = vis_chg.get("bounds") if vis_chg else None
+                                except Exception as vis_exc:
+                                    print(f"[EXECUTOR WARNING] Change visualization for {idx_name}: {vis_exc}")
+                                    chg_res["visualization"] = None
+                                    chg_res["bounds"] = None
 
                             valid_diff = c_map[np.isfinite(c_map)] if c_map is not None else []
                             chg_res["min_change"] = float(np.min(valid_diff)) if len(valid_diff) > 0 else None
@@ -1925,6 +1941,149 @@ def execute_plan(
                 result["optical_sar_pair"] = pair_metadata
                 if "metadata" in result and isinstance(result["metadata"], dict):
                     result["metadata"]["optical_sar_pair"] = pair_metadata
+
+        # =====================================================
+        # SINGLE-IMAGE VISUAL QUESTION ANSWERING (VQA)
+        # =====================================================
+
+        elif tool_name == "single_image_vqa":
+
+            # Resolve exactly ONE image following repository priority:
+            # 1. Explicit image object or path from context
+            # 2. Uploaded image/image_id
+            # 3. Existing imagery-search result if available
+            raw_image = None
+            resolved_path = None
+
+            if context.get("image") is not None:
+                raw_image = context["image"]
+            elif context.get("image_path"):
+                raw_image = context["image_path"]
+            elif context.get("path"):
+                raw_image = context["path"]
+            elif context.get("optical_path") or context.get("sar_path"):
+                raw_image = context.get("sar_path") or context.get("optical_path")
+            elif context.get("image_id"):
+                raw_image = context["image_id"]
+            elif context.get("image_ids"):
+                ids = context["image_ids"]
+                if isinstance(ids, list) and len(ids) > 0:
+                    raw_image = ids[0]
+                elif isinstance(ids, str):
+                    raw_image = ids
+            elif context.get("optical_image_id") or context.get("sar_image_id"):
+                raw_image = context.get("sar_image_id") or context.get("optical_image_id")
+            elif context.get("images"):
+                imgs = context["images"]
+                if isinstance(imgs, list) and len(imgs) > 0:
+                    raw_image = imgs[0]
+                elif isinstance(imgs, dict):
+                    raw_image = imgs.get("image") or imgs.get("optical") or imgs.get("sar")
+            elif imagery_result:
+                imgs = imagery_result.get("images", [])
+                if imgs:
+                    first = imgs[0]
+                    if isinstance(first, dict):
+                        bands = first.get("bands", {})
+                        raw_image = bands.get("red") or bands.get("nir") or first.get("path")
+                    else:
+                        raw_image = first
+
+            if raw_image is None:
+                raise ValueError(
+                    "single_image_vqa requires exactly one image, but no image was found in context."
+                )
+
+            # Convert string/Path to PIL Image or resolved image object if applicable
+            if isinstance(raw_image, (str, Path)):
+                try:
+                    resolved_path = resolve_image_reference(str(raw_image))
+                except Exception:
+                    p = Path(str(raw_image))
+                    if p.is_file():
+                        resolved_path = p
+
+                if resolved_path and resolved_path.is_file():
+                    try:
+                        from PIL import Image
+                        suffix = resolved_path.suffix.lower()
+                        if suffix in (".png", ".jpg", ".jpeg"):
+                            image = Image.open(resolved_path).convert("RGB")
+                        elif suffix in (".tif", ".tiff"):
+                            with rasterio.open(resolved_path) as src:
+                                if src.count >= 3:
+                                    bands = [src.read(i).astype(np.float32) for i in (1, 2, 3)]
+                                    norm_bands = []
+                                    for b in bands:
+                                        low, high = float(np.percentile(b, 2)), float(np.percentile(b, 98))
+                                        denom = max(high - low, 1e-5)
+                                        scaled = np.clip((b - low) / denom, 0.0, 1.0) * 255.0
+                                        norm_bands.append(scaled.astype(np.uint8))
+                                    stacked = np.stack(norm_bands, axis=-1)
+                                    image = Image.fromarray(stacked, mode="RGB")
+                                else:
+                                    b = src.read(1).astype(np.float32)
+                                    low, high = float(np.percentile(b, 2)), float(np.percentile(b, 98))
+                                    denom = max(high - low, 1e-5)
+                                    scaled = np.clip((b - low) / denom, 0.0, 1.0) * 255.0
+                                    image = Image.fromarray(scaled.astype(np.uint8), mode="L").convert("RGB")
+                        else:
+                            image = Image.open(resolved_path)
+                    except Exception:
+                        image = resolved_path
+                else:
+                    image = raw_image
+            else:
+                image = raw_image
+
+            # Extract question
+            question = context.get("question") or context.get("query")
+            if not question or not isinstance(question, str) or not question.strip():
+                raise ValueError("question must be a non-empty string for single_image_vqa")
+
+            # Extract / determine modality safely
+            modality = context.get("modality")
+            if not modality or modality == "unknown":
+                if isinstance(raw_image, (str, Path)):
+                    try:
+                        p_cand = resolved_path if (resolved_path and resolved_path.is_file()) else Path(str(raw_image))
+                        if p_cand.is_file():
+                            modality = inspect_raster_modality(p_cand)
+                    except Exception:
+                        pass
+
+            if not modality or modality == "unknown":
+                if context.get("sar_path") or context.get("sar_image_id"):
+                    modality = "sar"
+                elif context.get("optical_path") or context.get("optical_image_id"):
+                    modality = "optical"
+                elif context.get("modalities"):
+                    mods = context["modalities"]
+                    if isinstance(mods, list) and len(mods) > 0 and mods[0] in ("optical", "multispectral", "sar"):
+                        modality = mods[0]
+
+            if not modality or modality not in ("optical", "multispectral", "sar"):
+                q_low = question.lower()
+                if any(k in q_low for k in ["sar", "radar", "sentinel-1", "s1", "backscatter"]):
+                    modality = "sar"
+                elif any(k in q_low for k in ["optical", "sentinel-2", "s2", "multispectral"]):
+                    modality = "optical"
+                else:
+                    modality = "unknown"
+
+            # Extract evidence
+            evidence = context.get("evidence")
+
+            print(f"[VQA AGENT] Executing single_image_vqa with modality={modality}")
+
+            from app.vlm.vqa import run_vqa
+
+            result = run_vqa(
+                image=image,
+                question=question,
+                modality=modality,
+                evidence=evidence,
+            )
 
         # =====================================================
         # FALLBACK

@@ -53,6 +53,9 @@ class QueryPlan(BaseModel):
     # Specific remote-sensing metric (e.g., NDVI, NDWI, NDBI)
     metric: Optional[str] = None
 
+    # Explicitly requested metric in query text (e.g., "NDVI", "NDWI", "NDBI")
+    explicit_metric: Optional[str] = None
+
     # Primary remote sensing indicators (e.g., ["NDBI"], ["NDVI", "NDWI", "NDBI"])
     primary_indicators: List[str] = Field(default_factory=list)
 

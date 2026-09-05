@@ -383,6 +383,8 @@ def evaluate_case(
     run_inference: bool = True,
     save_visuals_dir: Optional[Path] = None,
     run_comparison: bool = False,
+    model_id: Optional[str] = None,
+    checkpoint: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Evaluate a single Optical-SAR case from the manifest.
@@ -411,8 +413,20 @@ def evaluate_case(
         "category": category,
         "question": question,
         "expected_focus": expected_focus,
-        "optical_path": str(optical_path),
-        "sar_path": str(sar_path),
+        "optical_path": optical_rel,
+        "sar_path": sar_rel,
+        "model_id": model_id or "Qwen/Qwen2.5-VL-72B-Instruct",
+        "checkpoint": checkpoint or "base_foundation",
+        "evaluation_mode": "pending",
+        "confidence": None,
+        "evidence": None,
+        "layers": ["optical_rgb", "sar_vv", "sar_vh", "sar_composite"],
+        "execution_trace": [
+            {"step": "resolve_paths", "status": "ok"},
+            {"step": "validate_pair", "status": "ok"},
+            {"step": "align_pair", "status": "ok"},
+            {"step": "build_visuals", "status": "ok"},
+        ],
         "source": source_meta,
         "notes": notes,
         "status": "pending",
@@ -445,15 +459,19 @@ def evaluate_case(
 
     # 1. Existence Checks
     if not optical_path.exists():
-        err = f"Optical raster not found: {optical_path}"
+        err = f"Optical raster not found: {optical_rel}"
         result_record["status"] = "missing_optical_reference"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["errors"].append(err)
+        result_record["execution_trace"] = [{"step": "resolve_paths", "status": "failed", "detail": "missing_optical"}]
         return result_record
 
     if not sar_path.exists():
-        err = f"SAR raster not found: {sar_path}"
+        err = f"SAR raster not found: {sar_rel}"
         result_record["status"] = "missing_sar_reference"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["errors"].append(err)
+        result_record["execution_trace"] = [{"step": "resolve_paths", "status": "failed", "detail": "missing_sar"}]
         return result_record
 
     # 2. Validate Pair
@@ -461,12 +479,22 @@ def evaluate_case(
         val_res = validate_optical_sar_pair(str(optical_path), str(sar_path))
     except Exception as exc:
         result_record["status"] = "validation_exception"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["errors"].append(f"Validation raised unexpected exception: {exc}")
+        result_record["execution_trace"] = [
+            {"step": "resolve_paths", "status": "ok"},
+            {"step": "validate_pair", "status": "failed", "detail": "validation_exception"},
+        ]
         return result_record
 
     if not val_res.get("valid", False):
         result_record["status"] = "invalid_pair"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["errors"].extend(val_res.get("errors", ["Optical-SAR pair validation failed."]))
+        result_record["execution_trace"] = [
+            {"step": "resolve_paths", "status": "ok"},
+            {"step": "validate_pair", "status": "failed", "detail": "invalid_pair"},
+        ]
         return result_record
 
     # 3. Align Pair
@@ -474,12 +502,24 @@ def evaluate_case(
         aligned = align_optical_sar_pair(str(optical_path), str(sar_path))
     except Exception as exc:
         result_record["status"] = "alignment_exception"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["errors"].append(f"Alignment raised unexpected exception: {exc}")
+        result_record["execution_trace"] = [
+            {"step": "resolve_paths", "status": "ok"},
+            {"step": "validate_pair", "status": "ok"},
+            {"step": "align_pair", "status": "failed", "detail": "alignment_exception"},
+        ]
         return result_record
 
     if not aligned.get("success", False):
         result_record["status"] = "alignment_failed"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["errors"].extend(aligned.get("errors", ["Optical-SAR alignment failed."]))
+        result_record["execution_trace"] = [
+            {"step": "resolve_paths", "status": "ok"},
+            {"step": "validate_pair", "status": "ok"},
+            {"step": "align_pair", "status": "failed", "detail": "alignment_failed"},
+        ]
         return result_record
 
     # 4. Build Visual Representations
@@ -498,7 +538,14 @@ def evaluate_case(
                 visuals["s1_composite"]["image"].save(vis_out_dir / f"{case_id}_sar_composite.png")
     except Exception as exc:
         result_record["status"] = "visuals_exception"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["errors"].append(f"Visuals generation failed: {exc}")
+        result_record["execution_trace"] = [
+            {"step": "resolve_paths", "status": "ok"},
+            {"step": "validate_pair", "status": "ok"},
+            {"step": "align_pair", "status": "ok"},
+            {"step": "build_visuals", "status": "failed", "detail": "visuals_exception"},
+        ]
         return result_record
 
     # Step 9J & 9K: Visual Sanity and Grid Alignment Checks
@@ -559,28 +606,40 @@ def evaluate_case(
                 if fallback_used:
                     # In accordance with STEP 9M & 10N: handle missing HF_TOKEN gracefully and mark inference unavailable
                     result_record["status"] = "inference_unavailable"
+                    result_record["evaluation_mode"] = "deterministic_fallback"
                     result_record["answer"] = f"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]\n{answer_text}"
+                    result_record["execution_trace"].append({"step": "inference", "status": "fallback", "detail": "deterministic_fallback_used"})
                 else:
                     result_record["status"] = "success"
+                    is_mock = vlm is not None and ("mock" in type(vlm).__name__.lower() or "magic" in type(vlm).__name__.lower())
+                    result_record["evaluation_mode"] = "mocked_vlm" if is_mock else "real_vlm"
                     result_record["answer"] = answer_text
+                    result_record["execution_trace"].append({"step": "inference", "status": "ok", "detail": result_record["evaluation_mode"]})
             else:
                 result_record["status"] = "vlm_error"
+                result_record["evaluation_mode"] = "deterministic_fallback"
                 result_record["errors"].append(ans_res.get("error", "VLM question answering returned failure."))
+                result_record["execution_trace"].append({"step": "inference", "status": "error", "detail": "vlm_error"})
         except Exception as exc:
             # Handle token or connection exceptions gracefully
             err_msg = str(exc)
+            result_record["evaluation_mode"] = "deterministic_fallback"
             if "HF_TOKEN" in err_msg or "token" in err_msg.lower():
                 result_record["status"] = "inference_unavailable"
                 result_record["answer"] = "[INFERENCE UNAVAILABLE - HF_TOKEN NOT CONFIGURED]"
                 result_record["errors"].append("VLM inference unavailable: HF_TOKEN is not configured.")
+                result_record["execution_trace"].append({"step": "inference", "status": "fallback", "detail": "hf_token_not_configured"})
             else:
                 result_record["status"] = "vlm_exception"
                 result_record["errors"].append(f"VLM inference threw exception: {err_msg}")
+                result_record["execution_trace"].append({"step": "inference", "status": "error", "detail": "vlm_exception"})
     else:
         # Dry-run / pipeline verification without model inference
         result_record["status"] = "pipeline_verified_no_inference"
+        result_record["evaluation_mode"] = "infrastructure_only"
         result_record["answer"] = "[NO INFERENCE REQUESTED - PIPELINE AND GRID VERIFIED]"
         result_record["modalities"] = ["optical", "sar_vv", "sar_vh"]
+        result_record["execution_trace"].append({"step": "inference", "status": "skipped", "detail": "pipeline_verified_no_inference"})
 
     # 6. Automated Safety & Modality Collapse Checks (Step 10G)
     if answer_text:
@@ -621,6 +680,8 @@ def run_evaluation(
     run_inference: bool = True,
     save_visuals: bool = True,
     run_comparison: bool = False,
+    model_id: Optional[str] = None,
+    checkpoint: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Run evaluation across all cases in the manifest.
@@ -644,6 +705,7 @@ def run_evaluation(
     logger.info("Starting Optical-SAR Evaluation on %d cases (run_comparison=%s)...", len(cases), run_comparison)
     logger.info("Manifest: %s", m_path)
     logger.info("Output directory: %s", out_dir)
+    logger.info("Model ID: %s | Checkpoint: %s", model_id or "Qwen/Qwen2.5-VL-72B-Instruct", checkpoint or "base_foundation")
 
     results: List[Dict[str, Any]] = []
     comparisons: List[Dict[str, Any]] = []
@@ -658,6 +720,8 @@ def run_evaluation(
             run_inference=run_inference,
             save_visuals_dir=vis_dir,
             run_comparison=run_comparison,
+            model_id=model_id,
+            checkpoint=checkpoint,
         )
         results.append(rec)
         if rec.get("ablation_comparison"):
@@ -692,6 +756,9 @@ def run_evaluation(
     csv_headers = [
         "case_id",
         "category",
+        "model_id",
+        "checkpoint",
+        "evaluation_mode",
         "question",
         "answer",
         "optical_usage_0_to_2",
@@ -712,6 +779,9 @@ def run_evaluation(
             writer.writerow([
                 r.get("case_id", ""),
                 r.get("category", ""),
+                r.get("model_id", ""),
+                r.get("checkpoint", ""),
+                r.get("evaluation_mode", ""),
                 r.get("question", ""),
                 r.get("answer", "") or "",
                 eval_fields.get("optical_usage") if eval_fields.get("optical_usage") is not None else "",
@@ -761,6 +831,18 @@ def main():
         action="store_true",
         help="Run controlled modality ablation comparison (Optical vs Optical+SAR)",
     )
+    parser.add_argument(
+        "--model-id",
+        type=str,
+        default="Qwen/Qwen2.5-VL-72B-Instruct",
+        help="Identifier of the model being evaluated",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Optional path or checkpoint identifier for fine-tuned weights",
+    )
 
     args = parser.parse_args()
 
@@ -770,6 +852,8 @@ def main():
         run_inference=not args.no_inference,
         save_visuals=not args.no_visuals,
         run_comparison=args.run_comparison,
+        model_id=args.model_id,
+        checkpoint=args.checkpoint,
     )
 
     # Summary statistics
@@ -782,6 +866,9 @@ def main():
     print("\n" + "=" * 60)
     print("OPTICAL-SAR EVALUATION SUMMARY")
     print("=" * 60)
+    print(f"Model ID: {args.model_id}")
+    if args.checkpoint:
+        print(f"Checkpoint: {args.checkpoint}")
     print(f"Total Cases: {total}")
     print(f"Dimensions Matched: {dim_match_count}/{total}")
     print(f"VLM Inference Success: {success_count}/{total}")

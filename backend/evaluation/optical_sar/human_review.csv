@@ -1,17 +1,8 @@
-case_id,category,question,answer,optical_usage_0_to_2,sar_usage_0_to_2,multimodal_reasoning_0_to_2,physical_correctness_0_to_2,grounding_0_to_2,uncertainty_0_to_2,relevance_0_to_2,review_notes
-case_001_urban,built_up_urban,Use the optical and SAR images together to identify likely built-up areas.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
-Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
+case_id,category,model_id,checkpoint,evaluation_mode,question,answer,optical_usage_0_to_2,sar_usage_0_to_2,multimodal_reasoning_0_to_2,physical_correctness_0_to_2,grounding_0_to_2,uncertainty_0_to_2,relevance_0_to_2,review_notes
+case_001_urban,built_up_urban,Qwen/Qwen2.5-VL-72B-Instruct,base_foundation,real_vlm,Use the optical and SAR images together to identify likely built-up areas.,"Likely built-up areas are identified where the optical imagery shows structured, geometric features such as buildings, roads, and parking lots, which are corroborated by strong radar backscatter in the SAR imagery. In the optical image, there are clear linear and rectangular shapes indicative of human-made structures, particularly in the central and upper portions of the scene. These areas align with brighter regions in the Sentinel-1 VV SAR image, suggesting double-bounce scattering typical of urban environments. The VV/VH SAR composite further supports this, showing yellow and cyan hues in these areas, indicating high VV backscatter relative to VH, consistent with built-up surfaces.
 
-Query: ""Use the optical and SAR images together to identify likely built-up areas.""
-
-Qualitative Multimodal Synthesis:
-- Optical spectral reflectance provides surface solar reflectance, visible land-cover texture, and boundaries.
-- Sentinel-1 SAR radar backscatter provides complementary physical sensitivity to surface roughness, structural geometry, and dielectric properties.
-- Display encodings: Grayscale intensity displays normalized radar backscatter (not optical color); the dual-polarization composite maps VV to red, VH to green, and |VV-VH| contrast to blue.
-- Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
-
-Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
-case_002_water,water,Use the optical and SAR imagery together to identify water-covered regions.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+The SAR imagery complements the optical observations by highlighting areas with strong radar returns, which are characteristic of urban materials and structures. While the SAR images alone do not definitively identify land cover, they provide strong evidence when combined with the optical textures. The dual-polarization composite reveals polarization contrasts that suggest the presence of vertical structures interacting with the ground, reinforcing the likelihood of built-up areas. However, it is important to note that without additional quantitative measurements, the identification remains based on qualitative visual patterns.",,,,,,,,
+case_002_water,water,Qwen/Qwen2.5-VL-72B-Instruct,base_foundation,deterministic_fallback,Use the optical and SAR imagery together to identify water-covered regions.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
 Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
 
 Query: ""Use the optical and SAR imagery together to identify water-covered regions.""
@@ -23,7 +14,7 @@ Qualitative Multimodal Synthesis:
 - Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
 
 Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
-case_003_vegetation,vegetation,Describe the dominant vegetation patterns using both optical and SAR evidence.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+case_003_vegetation,vegetation,Qwen/Qwen2.5-VL-72B-Instruct,base_foundation,deterministic_fallback,Describe the dominant vegetation patterns using both optical and SAR evidence.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
 Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
 
 Query: ""Describe the dominant vegetation patterns using both optical and SAR evidence.""
@@ -35,7 +26,7 @@ Qualitative Multimodal Synthesis:
 - Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
 
 Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
-case_004_complementary,cross_modal_complementary,What information does SAR provide that is less apparent in the optical image?,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+case_004_complementary,cross_modal_complementary,Qwen/Qwen2.5-VL-72B-Instruct,base_foundation,deterministic_fallback,What information does SAR provide that is less apparent in the optical image?,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
 Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
 
 Query: ""What information does SAR provide that is less apparent in the optical image?""
@@ -47,7 +38,7 @@ Qualitative Multimodal Synthesis:
 - Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
 
 Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
-case_005_vv_vh_comparison,vv_vh_comparison,Compare VV and VH evidence for likely urban or vegetated regions.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+case_005_vv_vh_comparison,vv_vh_comparison,Qwen/Qwen2.5-VL-72B-Instruct,base_foundation,deterministic_fallback,Compare VV and VH evidence for likely urban or vegetated regions.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
 Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
 
 Query: ""Compare VV and VH evidence for likely urban or vegetated regions.""
@@ -59,7 +50,7 @@ Qualitative Multimodal Synthesis:
 - Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
 
 Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
-case_006_ambiguous,ambiguous_scene,Analyze this scene using both optical and SAR imagery. Can the boundary between cultivated fields and seminatural vegetation be unambiguously identified?,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+case_006_ambiguous,ambiguous_scene,Qwen/Qwen2.5-VL-72B-Instruct,base_foundation,deterministic_fallback,Analyze this scene using both optical and SAR imagery. Can the boundary between cultivated fields and seminatural vegetation be unambiguously identified?,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
 Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (120x120 pixels, CRS: EPSG:32633).
 
 Query: ""Analyze this scene using both optical and SAR imagery. Can the boundary between cultivated fields and seminatural vegetation be unambiguously identified?""
@@ -71,7 +62,7 @@ Qualitative Multimodal Synthesis:
 - Interpretation caveat: Polarization response depends multivariately on geometry, canopy structure, moisture, and incidence angle rather than single-factor assumptions.
 
 Note: The visual language model (VLM) inference service was unavailable; this deterministic multimodal analysis summary was generated from the co-registered metadata.",,,,,,,,
-case_007_cross_crs_alignment,cross_crs_alignment,Describe the spatial relationship between optical reflectance and SAR backscatter after reprojection to the geographic reference grid.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
+case_007_cross_crs_alignment,cross_crs_alignment,Qwen/Qwen2.5-VL-72B-Instruct,base_foundation,deterministic_fallback,Describe the spatial relationship between optical reflectance and SAR backscatter after reprojection to the geographic reference grid.,"[INFERENCE UNAVAILABLE - FALLBACK RESPONSE]
 Optical imagery (true-color RGB) and Sentinel-1 SAR observations (sar_vv, sar_vh, sar_composite) have been co-registered onto the optical reference grid (143x96 pixels, CRS: EPSG:4326).
 
 Query: ""Describe the spatial relationship between optical reflectance and SAR backscatter after reprojection to the geographic reference grid.""

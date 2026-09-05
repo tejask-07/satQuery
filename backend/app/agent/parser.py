@@ -15,6 +15,7 @@ ALLOWED_INTENTS = {
     "image_comparison",
     "image_search",
     "optical_sar_analysis",
+    "single_image_vqa",
     "unknown",
 }
 
@@ -291,6 +292,113 @@ def detect_optical_sar_intent(query: str) -> bool:
     return has_joint_cue or has_analysis_cue
 
 
+def detect_single_image_vqa_intent(query: str, request: Optional[QueryRequest] = None) -> bool:
+    """
+    Detect whether a query represents a single-image Visual Question Answering (VQA) request.
+    Strict priority rules:
+    - Optical-SAR multimodal requests MUST win over generic VQA.
+    - Temporal change requests MUST win over generic VQA.
+    - Explicit index requests (NDVI/NDWI/NDBI) MUST win over generic VQA.
+    - Does not classify every query containing 'image' as VQA.
+    """
+    q = query.lower()
+
+    # Rule 1: Optical-SAR queries must NOT be classified as generic VQA
+    if detect_optical_sar_intent(query):
+        return False
+
+    # Rule 2: Land cover transition must NOT be classified as VQA
+    if detect_transition(query):
+        return False
+
+    # Rule 3: Temporal change detection must NOT be classified as VQA
+    if (
+        re.search(r"\bwhat\s+(?:has\s+)?changed\b", q) is not None
+        or re.search(r"\bdetect\s+changes?\b", q) is not None
+        or re.search(r"\bshow\s+changes?\b", q) is not None
+        or re.search(r"\ball\s+changes?\b", q) is not None
+        or re.search(r"\boverall\s+change\b", q) is not None
+        or re.search(r"\bgeneral\s+change\b", q) is not None
+        or "before and after" in q
+        or "over time" in q
+        or "across years" in q
+        or ("change" in q and any(k in q for k in ["between", "from", "since", "to 20", "growth", "loss", "decline", "increase", "decrease"]))
+    ):
+        return False
+
+    # Rule 4: Explicit spectral index calculation must NOT be classified as VQA
+    if (
+        any(k in q for k in [
+            "calculate ndvi", "calculate ndwi", "calculate ndbi",
+            "compute ndvi", "compute ndwi", "compute ndbi",
+            "measure ndvi", "measure ndwi", "measure ndbi",
+            "vegetation index", "water index", "urban index",
+            "what is the ndvi", "what is the ndwi", "what is the ndbi",
+            "what's the ndvi", "what's the ndwi", "what's the ndbi",
+        ])
+        or re.search(r"\b(?:ndvi|ndwi|ndbi)\b", q) is not None
+        or q.strip() in ["ndvi", "ndwi", "ndbi"]
+    ):
+        return False
+
+    # Rule 5: Compare two images must remain image_comparison
+    if (
+        ("compare these two" in q or "compare two" in q or "compare the two" in q or "between the two" in q)
+        and not any(k in q for k in ["what is", "is there", "are there"])
+    ):
+        return False
+
+    # Positive VQA patterns:
+    # 1. "What is visible ...", "What structures are visible ...", "What objects are visible ..."
+    if re.search(r"\bwhat\s+(?:structures?|features?|objects?|elements?|details?|regions?|patterns?|type\s+of\s+land\s*cover|land\s*cover)?\s*(?:is|are)?\s*(?:visible|present|seen|shown|dominates?|dominant)\b", q):
+        return True
+
+    # 2. "What is in this image", "What does this image show", "What does the SAR image show"
+    if re.search(r"\bwhat\s+(?:is\s+in|does\s+(?:this|the)?\s*(?:sar\s+|optical\s+)?image\s+show|do\s+you\s+see)\b", q):
+        return True
+
+    # 3. "Is there water here?", "Is there a water body in this image?", "Is there [a] <feature> ..."
+    if re.search(r"\bis\s+there\s+(?:a\s+|an\s+)?(?:\w+\s+)?(?:water(?:\s*body)?|lake|river|reservoir|wetland|flood|forest|vegetation|trees?|greenery|buildings?|structures?|construction|urban|settlement|roads?|clouds?|snow|ice)\b", q):
+        return True
+
+    # 4. "Are there buildings?", "Are there structures?", "Are there [any] <features> ..."
+    if re.search(r"\bare\s+there\s+(?:any\s+)?(?:\w+\s+)?(?:buildings?|structures?|bridges?|houses?|settlements?|trees?|roads?|features?|objects?|water\s*bodies?|water|crops?|fields?)\b", q):
+        return True
+
+    # 5. "What type of land cover dominates?", "What land cover is dominant?", "Which land cover dominates"
+    if re.search(r"\b(?:what|which)\s+(?:type\s+of\s+)?land\s*cover\s+(?:dominates?|is\s+dominant)\b", q) or re.search(r"\bland\s*cover\s+dominates\b", q):
+        return True
+
+    # 6. "Describe the objects in this image", "Describe the features...", "Describe the land cover..."
+    if re.search(r"\bdescribe\s+(?:the\s+)?(?:objects?|features?|structures?|land\s*cover|main\s+features?|visible\s+features?)\b", q):
+        return True
+
+    # 7. "Can you identify the main features?", "Can you identify...", "Can you describe..."
+    if re.search(r"\b(?:can|could)\s+you\s+(?:identify|describe|find|detect|see)\s+(?:the\s+)?(?:main\s+|dominant\s+|visible\s+)?(?:features?|objects?|structures?|land\s*cover|characteristics?)\b", q):
+        return True
+
+    # 8. Single image reference with interrogative intent
+    if any(k in q for k in [
+        "this image", "the image", "this sar image", "the sar image",
+        "this radar image", "the radar image", "this optical image", "the optical image",
+        "the satellite image", "this satellite image",
+    ]):
+        if any(q.startswith(w) for w in ["what", "is ", "are ", "can ", "could ", "describe ", "identify "]) or q.endswith("?"):
+            return True
+
+    # 9. Request with explicit single image identifier and a question
+    if request is not None:
+        has_single_id = (
+            (len(request.image_ids) == 1)
+            or (request.optical_image_id and not request.sar_image_id)
+            or (request.sar_image_id and not request.optical_image_id)
+        )
+        if has_single_id and (q.endswith("?") or any(q.startswith(w) for w in ["what", "is ", "are ", "can ", "describe ", "identify "])):
+            return True
+
+    return False
+
+
 # ============================================================
 # MAIN QUERY PARSER & ANALYSIS PLANNER
 # ============================================================
@@ -479,6 +587,52 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
         )
 
     # --------------------------------------------------------
+    # 2B. SINGLE-IMAGE VISUAL QUESTION ANSWERING (VQA)
+    # --------------------------------------------------------
+    if detect_single_image_vqa_intent(query, request):
+        is_sar = any(k in query for k in ["sar", "radar", "sentinel-1", "sentinel 1", "s1", "backscatter"]) or (
+            getattr(request, "sar_image_id", None) and not getattr(request, "optical_image_id", None)
+        )
+        is_optical = any(k in query for k in ["optical", "sentinel-2", "sentinel 2", "s2", "multispectral", "rgb", "true color"]) or (
+            getattr(request, "optical_image_id", None) and not getattr(request, "sar_image_id", None)
+        )
+
+        if is_sar and not is_optical:
+            vqa_modalities = ["sar"]
+        elif is_optical and not is_sar:
+            vqa_modalities = ["optical"]
+        else:
+            vqa_modalities = ["unknown"]
+
+        target_val = (
+            "water"
+            if any(w in query for w in ["water", "river", "lake", "flood", "wetland"])
+            else (
+                "urban"
+                if any(w in query for w in ["urban", "built-up", "built up", "city", "building", "buildings", "structure", "structures"])
+                else ("vegetation" if any(w in query for w in ["vegetation", "forest", "crop", "crops", "tree", "trees"]) else None)
+            )
+        )
+        targets_list = [target_val] if target_val else []
+
+        return QueryPlan(
+            task="single_image_vqa",
+            intent="single_image_vqa",
+            target=target_val,
+            targets=targets_list,
+            time_start=time_start if has_temporal_input else None,
+            time_end=time_end if has_temporal_input else None,
+            aoi=aoi,
+            modalities=vqa_modalities,
+            primary_indicators=[],
+            supporting_indicators=[],
+            evidence_requirements=["visual"],
+            direction="unknown",
+            analysis=["single_image_vqa"],
+            outputs=["explanation", "confidence"],
+        )
+
+    # --------------------------------------------------------
     # 3. SINGLE INDEX COMPUTATION (Non-change query)
     # --------------------------------------------------------
     if not is_change_query and ("single" in query or "calculate" in query or year_count <= 1):
@@ -601,6 +755,10 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
     is_decrease = any(d in query for d in ["decrease", "loss", "decline", "reduced", "shrink", "shrinkage", "degradation", "dry", "drop", "deforestation"])
     is_increase = any(d in query for d in ["increase", "growth", "expansion", "expanded", "expand", "gain", "bloom", "rise", "grow"])
 
+    has_explicit_ndvi = bool(re.search(r"\bndvi\b", query, re.IGNORECASE))
+    has_explicit_ndwi = bool(re.search(r"\bndwi\b", query, re.IGNORECASE))
+    has_explicit_ndbi = bool(re.search(r"\bndbi\b", query, re.IGNORECASE))
+
     if has_urban and not has_vegetation and not has_water:
         return QueryPlan(
             task="urban_change",
@@ -608,6 +766,7 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
             target="urban",
             targets=["urban"],
             metric="ndbi",
+            explicit_metric="ndbi" if has_explicit_ndbi else None,
             direction="increase" if is_increase else ("decrease" if is_decrease else "unknown"),
             modalities=["multispectral"],
             time_start=time_start,
@@ -646,6 +805,7 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
             target="vegetation",
             targets=["vegetation"],
             metric="ndvi",
+            explicit_metric="ndvi" if has_explicit_ndvi else None,
             direction="decrease" if is_decrease else ("increase" if is_increase else "unknown"),
             modalities=["multispectral"],
             time_start=time_start,
@@ -684,6 +844,7 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
             target="water",
             targets=["water"],
             metric="ndwi",
+            explicit_metric="ndwi" if has_explicit_ndwi else None,
             direction="decrease" if is_decrease else ("increase" if is_increase else "unknown"),
             modalities=["multispectral"],
             time_start=time_start,

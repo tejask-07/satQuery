@@ -16,6 +16,46 @@ def create_execution_plan(query_plan: QueryPlan) -> List[str]:
             "optical_sar_analysis",
         ]
 
+    if task == "single_image_vqa":
+        return [
+            "single_image_vqa",
+        ]
+
+    explicit_metric = (
+        getattr(query_plan, "explicit_metric", None)
+        or ("ndvi" if task in {"ndvi_change", "calculate_temporal_ndvi"}
+            else "ndwi" if task in {"ndwi_change", "calculate_temporal_ndwi"}
+            else "ndbi" if task in {"ndbi_change", "calculate_temporal_ndbi"}
+            else None)
+    )
+    if not explicit_metric and query_plan.metric:
+        if query_plan.target is None and query_plan.metric.lower() in {"ndvi", "ndwi", "ndbi"}:
+            explicit_metric = query_plan.metric.lower()
+
+    if explicit_metric:
+        explicit_metric = explicit_metric.lower()
+
+    if explicit_metric == "ndvi":
+        return [
+            "search_imagery",
+            "calculate_temporal_ndvi",
+            "detect_change",
+        ]
+
+    if explicit_metric == "ndwi":
+        return [
+            "search_imagery",
+            "calculate_temporal_ndwi",
+            "detect_change",
+        ]
+
+    if explicit_metric == "ndbi":
+        return [
+            "search_imagery",
+            "calculate_temporal_ndbi",
+            "detect_change",
+        ]
+
     if task == "urban_change" or (task == "change_detection" and target == "urban"):
         return [
             "search_imagery",

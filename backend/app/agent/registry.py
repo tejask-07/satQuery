@@ -17,6 +17,9 @@ from app.tools.comparison import compare_images
 # Optical-SAR multimodal analysis tool
 from app.vlm.optical_sar import run_optical_sar_analysis
 
+# Single-image VQA tool
+from app.vlm.vqa import run_vqa
+
 
 TOOL_REGISTRY = {
     # Imagery
@@ -40,6 +43,9 @@ TOOL_REGISTRY = {
 
     # Optical-SAR analysis
     "optical_sar_analysis": run_optical_sar_analysis,
+
+    # Single-image Visual Question Answering
+    "single_image_vqa": run_vqa,
 }
 
 
