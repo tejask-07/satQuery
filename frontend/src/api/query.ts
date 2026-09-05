@@ -20,8 +20,8 @@ export interface AOIGeometry {
 export interface QueryRequest {
   query: string;
   aoi?: AOIGeometry;
-  start_date?: string;
-  end_date?: string;
+  time_start?: string;
+  time_end?: string;
 }
 
 export interface QueryPlan {
@@ -75,8 +75,8 @@ export async function submitQuery(
   query: string,
   options?: {
     aoi?: AOIGeometry;
-    start_date?: string;
-    end_date?: string;
+    time_start?: string;
+    time_end?: string;
   }
 ): Promise<QueryResponse> {
   const payload: QueryRequest = {
@@ -89,7 +89,7 @@ export async function submitQuery(
 
   const timeoutId = setTimeout(
     () => controller.abort(),
-    90000
+    300000
   );
 
   try {
@@ -133,7 +133,7 @@ export async function submitQuery(
       }
 
       throw new Error(
-        errorDetail
+        "Query request timed out after 5 minutes. The satellite imagery analysis is taking longer than expected."
       );
     }
 

@@ -18,4 +18,4 @@ rasterio==1.5.1
 pandas>=2.0.0
 python-dotenv>=1.0.0
 python-multipart>=0.0.9
-# python -m pip freeze | findstr opencv
+# python -m pip freeze | findstr opencv"
