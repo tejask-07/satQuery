@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +20,20 @@ from app.remote_sensing.multimodal.pairing import (
     find_optical_sar_pair,
     PairingErrorType,
 )
+from app.evidence.fusion import FusionThresholds
+from app.evaluation.label_ingestion import (
+    WC_BUILT_UP,
+    WC_CROPLAND,
+    WC_GRASSLAND,
+    WC_NODATA,
+    WC_SHRUBLAND,
+    WC_TREE_COVER,
+    WC_WATER,
+    align_reference_to_grid,
+    fetch_worldcover_tile,
+)
+from app.remote_sensing.preprocessing.quality import SCLClass
+from app.remote_sensing.indices.ndbi import NDBI_DENOMINATOR_FLOOR
 
 
 
@@ -52,6 +67,229 @@ def _read_raster(path: str) -> np.ndarray:
 
     with rasterio.open(path) as src:
         return src.read(1).astype(np.float32)
+
+
+def _load_worldcover_baseline_mask(
+    source_raster_path: str,
+    year: int = 2021,
+    target_classes: tuple[int, ...] = (WC_BUILT_UP,),
+) -> np.ndarray | None:
+    """Load and align a WorldCover baseline prior to a source grid.
+
+    The returned values are 1 for the requested classes, 0 for known
+    other classes, and 8 when the baseline is unavailable.
+    """
+
+    try:
+        with rasterio.open(source_raster_path) as target:
+            bounds = target.bounds
+            target_transform = target.transform
+            target_crs = str(target.crs)
+            target_shape = target.shape
+
+        cache_key = hashlib.md5(
+            f"{year}:{bounds.left:.6f}:{bounds.bottom:.6f}:"
+            f"{bounds.right:.6f}:{bounds.top:.6f}".encode()
+        ).hexdigest()[:8]
+        output_path = (
+            APP_DIR.parent
+            / "data"
+            / "cache"
+            / f"worldcover_{year}_{cache_key}.tif"
+        )
+
+        worldcover, worldcover_transform, worldcover_crs = fetch_worldcover_tile(
+            lon_min=float(bounds.left),
+            lat_min=float(bounds.bottom),
+            lon_max=float(bounds.right),
+            lat_max=float(bounds.top),
+            year=year,
+            output_path=output_path,
+        )
+
+        # Convert raw WorldCover labels into canonical alignment labels before
+        # reusing the existing categorical nearest-neighbour alignment helper.
+        baseline_labels = np.zeros(worldcover.shape, dtype=np.uint8)
+        baseline_labels[worldcover == WC_NODATA] = 8
+        baseline_labels[np.isin(worldcover, target_classes)] = 1
+
+        return align_reference_to_grid(
+            reference_arr=baseline_labels,
+            reference_transform=worldcover_transform,
+            reference_crs=worldcover_crs,
+            target_transform=target_transform,
+            target_crs=target_crs,
+            target_shape=target_shape,
+        )
+    except Exception as exc:
+        print(f"[WORLDCOVER WARNING] Baseline unavailable: {exc}")
+        return None
+
+
+def _raster_grid_metadata(path: str) -> dict:
+    with rasterio.open(path) as src:
+        return {
+            "shape": [int(src.height), int(src.width)],
+            "crs": str(src.crs),
+            "transform": [float(value) for value in src.transform],
+            "bounds": [
+                float(src.bounds.left),
+                float(src.bounds.bottom),
+                float(src.bounds.right),
+                float(src.bounds.top),
+            ],
+        }
+
+
+def _build_urban_semantic_result(
+    ndbi_result: dict,
+    ndvi_result: dict,
+    baseline: np.ndarray,
+    scl_before: np.ndarray | None,
+    scl_after: np.ndarray | None,
+    before: dict,
+    after: dict,
+    ndbi_before_path: str,
+    ndbi_after_path: str,
+    ndvi_before_path: str,
+    ndvi_after_path: str,
+) -> dict:
+    """Build the single source of truth for urban semantic candidates."""
+
+    ndbi_valid = np.asarray(ndbi_result["valid_mask"], dtype=bool)
+    ndvi_valid = np.asarray(ndvi_result["valid_mask"], dtype=bool)
+    valid = ndbi_valid & ndvi_valid
+    ndbi_delta = ndbi_result["ndbi_after"] - ndbi_result["ndbi_before"]
+    ndvi_delta = ndvi_result["ndvi_after"] - ndvi_result["ndvi_before"]
+    deadband = FusionThresholds.INDEX_DEADBAND
+
+    expansion = valid & (ndbi_delta > deadband) & (ndvi_delta <= deadband)
+    reduction = valid & (ndbi_delta < -deadband) & (ndvi_delta >= -deadband)
+    built_up = valid & (baseline == 1)
+    non_built_up = valid & (baseline == 0)
+    unavailable = valid & (baseline == 8)
+    expansion_support = expansion & built_up
+    reduction_support = reduction & built_up
+    candidate = expansion | reduction
+    uncertain = candidate & ~built_up
+    support = expansion_support | reduction_support
+    candidate_classes = np.zeros(valid.shape, dtype=np.uint8)
+    candidate_classes[expansion_support] = 1
+    candidate_classes[reduction_support] = 2
+    candidate_classes[uncertain] = 3
+    candidate_delta = ndbi_delta[candidate]
+
+    grid_ndbi = _raster_grid_metadata(ndbi_before_path)
+    grid_ndbi_after = _raster_grid_metadata(ndbi_after_path)
+    grid_ndvi = _raster_grid_metadata(ndvi_before_path)
+    grid_ndvi_after = _raster_grid_metadata(ndvi_after_path)
+    return {
+        "candidate_mask": candidate,
+        "support_mask": support,
+        "candidate_classes": candidate_classes,
+        "semantic_valid_pixels": int(np.sum(valid)),
+        "candidate_pixels": int(np.sum(candidate)),
+        "directional_expansion_pixels": int(np.sum(expansion)),
+        "directional_reduction_pixels": int(np.sum(reduction)),
+        "expansion_support_pixels": int(np.sum(expansion_support)),
+        "reduction_support_pixels": int(np.sum(reduction_support)),
+        "expansion_uncertain_pixels": int(np.sum(expansion & ~built_up)),
+        "reduction_uncertain_pixels": int(np.sum(reduction & ~built_up)),
+        "uncertain_pixels": int(np.sum(uncertain)),
+        "baseline_built_up_pixels": int(np.sum(built_up)),
+        "baseline_non_built_up_pixels": int(np.sum(non_built_up)),
+        "baseline_unavailable_pixels": int(np.sum(unavailable)),
+        "water_pixels_included": int(
+            np.sum(valid & ((scl_before == SCLClass.WATER) | (scl_after == SCLClass.WATER)))
+        ) if scl_before is not None and scl_after is not None else None,
+        "vegetation_pixels_included": int(
+            np.sum(valid & ((scl_before == SCLClass.VEGETATION) | (scl_after == SCLClass.VEGETATION)))
+        ) if scl_before is not None and scl_after is not None else None,
+        "delta_min": float(np.min(candidate_delta)) if candidate_delta.size else None,
+        "delta_max": float(np.max(candidate_delta)) if candidate_delta.size else None,
+        "delta_mean": float(np.mean(candidate_delta)) if candidate_delta.size else None,
+        "delta_median": float(np.median(candidate_delta)) if candidate_delta.size else None,
+        "delta_std": float(np.std(candidate_delta)) if candidate_delta.size else None,
+        "before_scene_id": before.get("id"),
+        "before_date": before.get("date"),
+        "after_scene_id": after.get("id"),
+        "after_date": after.get("date"),
+        "ndbi_grid": grid_ndbi,
+        "ndbi_after_grid": grid_ndbi_after,
+        "ndvi_grid": grid_ndvi,
+        "ndvi_after_grid": grid_ndvi_after,
+        "same_grid": (
+            grid_ndbi == grid_ndbi_after == grid_ndvi == grid_ndvi_after
+        ),
+        "ndbi_shape": grid_ndbi["shape"],
+        "ndvi_shape": grid_ndvi["shape"],
+        "ndbi_ndvi_valid_masks_equal": bool(np.array_equal(ndbi_valid, ndvi_valid)),
+        "ndbi_ndvi_deadband": float(deadband),
+        "ndbi_denominator_floor": float(NDBI_DENOMINATOR_FLOOR),
+    }
+
+
+def _build_landcover_semantic_result(
+    index_result: dict,
+    baseline: np.ndarray,
+    target: str,
+    before: dict,
+    after: dict,
+    index_before_path: str,
+    index_after_path: str,
+) -> dict:
+    """Build semantic vegetation or water candidates from one index delta."""
+
+    valid = np.asarray(index_result["valid_mask"], dtype=bool)
+    index_name = index_result["index"].upper()
+    before_key = f"{index_name.lower()}_before"
+    after_key = f"{index_name.lower()}_after"
+    delta = index_result[after_key] - index_result[before_key]
+    deadband = FusionThresholds.INDEX_DEADBAND
+    increase = valid & (delta > deadband)
+    decrease = valid & (delta < -deadband)
+    candidate = increase | decrease
+    baseline_target = valid & (baseline == 1)
+    confirmed_increase = increase & baseline_target
+    confirmed_decrease = decrease & baseline_target
+    uncertain = candidate & ~baseline_target
+    support = confirmed_increase | confirmed_decrease
+    classes = np.zeros(valid.shape, dtype=np.uint8)
+    classes[confirmed_increase] = 1
+    classes[confirmed_decrease] = 2
+    classes[uncertain] = 3
+    candidate_delta = delta[candidate]
+    return {
+        "candidate_mask": candidate,
+        "support_mask": support,
+        "candidate_classes": classes,
+        "semantic_valid_pixels": int(np.sum(valid)),
+        "candidate_pixels": int(np.sum(candidate)),
+        "raw_changed_pixels": int(np.sum(valid & (np.abs(delta) >= deadband))),
+        "directional_expansion_pixels": int(np.sum(increase)),
+        "directional_reduction_pixels": int(np.sum(decrease)),
+        "confirmed_expansion_pixels": int(np.sum(confirmed_increase)),
+        "confirmed_reduction_pixels": int(np.sum(confirmed_decrease)),
+        "uncertain_pixels": int(np.sum(uncertain)),
+        "baseline_target_pixels": int(np.sum(baseline_target)),
+        "baseline_non_target_pixels": int(np.sum(valid & (baseline == 0))),
+        "baseline_unavailable_pixels": int(np.sum(valid & (baseline == 8))),
+        "delta_min": float(np.min(candidate_delta)) if candidate_delta.size else None,
+        "delta_max": float(np.max(candidate_delta)) if candidate_delta.size else None,
+        "delta_mean": float(np.mean(candidate_delta)) if candidate_delta.size else None,
+        "delta_median": float(np.median(candidate_delta)) if candidate_delta.size else None,
+        "delta_std": float(np.std(candidate_delta)) if candidate_delta.size else None,
+        "before_scene_id": before.get("id"),
+        "before_date": before.get("date"),
+        "after_scene_id": after.get("id"),
+        "after_date": after.get("date"),
+        "index": index_name,
+        "target": target,
+        "grid": _raster_grid_metadata(index_before_path),
+        "after_grid": _raster_grid_metadata(index_after_path),
+        "same_grid": _raster_grid_metadata(index_before_path) == _raster_grid_metadata(index_after_path),
+        "deadband": float(deadband),
+    }
 
 
 def _get_raster_bounds(
@@ -1077,6 +1315,18 @@ def execute_plan(
             mask_before = _read_raster(mask_before_path) if mask_before_path else None
             mask_after = _read_raster(mask_after_path) if mask_after_path else None
 
+            scl_before_path = before.get("bands", {}).get("scl")
+            scl_after_path = after.get("bands", {}).get("scl")
+            scl_before = _read_raster(scl_before_path) if scl_before_path else None
+            scl_after = _read_raster(scl_after_path) if scl_after_path else None
+
+            if scl_before is not None:
+                vegetation_before = scl_before == SCLClass.VEGETATION
+                mask_before = vegetation_before if mask_before is None else mask_before.astype(bool) & vegetation_before
+            if scl_after is not None:
+                vegetation_after = scl_after == SCLClass.VEGETATION
+                mask_after = vegetation_after if mask_after is None else mask_after.astype(bool) & vegetation_after
+
             result = tool(
                 red_before=red_before,
                 nir_before=nir_before,
@@ -1257,6 +1507,22 @@ def execute_plan(
             mask_before = _read_raster(mask_before_path) if mask_before_path else None
             mask_after = _read_raster(mask_after_path) if mask_after_path else None
 
+            scl_before_path = before.get("bands", {}).get("scl")
+            scl_after_path = after.get("bands", {}).get("scl")
+            scl_before = _read_raster(scl_before_path) if scl_before_path else None
+            scl_after = _read_raster(scl_after_path) if scl_after_path else None
+
+            if scl_before is not None and scl_after is not None:
+                excluded_scl = (SCLClass.VEGETATION, SCLClass.WATER)
+                scl_joint_eligible = (
+                    ~np.isin(scl_before, excluded_scl)
+                    & ~np.isin(scl_after, excluded_scl)
+                )
+                if mask_before is not None:
+                    mask_before = mask_before.astype(bool) & scl_joint_eligible
+                if mask_after is not None:
+                    mask_after = mask_after.astype(bool) & scl_joint_eligible
+
             result = tool(
                 swir_before=swir_before,
                 nir_before=nir_before,
@@ -1265,6 +1531,44 @@ def execute_plan(
                 mask_before=mask_before,
                 mask_after=mask_after,
             )
+
+            # Build the single urban semantic result used by counts and maps.
+            try:
+                red_before_path = _get_band_path(before, "red", time_start)
+                red_after_path = _get_band_path(after, "red", time_end)
+                ndvi_tool = get_tool("calculate_temporal_ndvi")
+                urban_ndvi = ndvi_tool(
+                    red_before=_read_raster(red_before_path),
+                    nir_before=nir_before,
+                    red_after=_read_raster(red_after_path),
+                    nir_after=nir_after,
+                    mask_before=mask_before,
+                    mask_after=mask_after,
+                )
+
+                baseline = _load_worldcover_baseline_mask(swir_before_path)
+                if baseline is None:
+                    baseline = np.full(
+                        result["valid_mask"].shape,
+                        8,
+                        dtype=np.uint8,
+                    )
+
+                result["urban_semantic"] = _build_urban_semantic_result(
+                    ndbi_result=result,
+                    ndvi_result=urban_ndvi,
+                    baseline=baseline,
+                    scl_before=scl_before,
+                    scl_after=scl_after,
+                    before=before,
+                    after=after,
+                    ndbi_before_path=swir_before_path,
+                    ndbi_after_path=swir_after_path,
+                    ndvi_before_path=red_before_path,
+                    ndvi_after_path=red_after_path,
+                )
+            except Exception as exc:
+                print(f"[EXECUTOR WARNING] Urban NDBI semantics unavailable: {exc}")
 
             ts_now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             idx_vis = {}
@@ -1702,6 +2006,76 @@ def execute_plan(
                     except Exception as exc:
                         print(f"[EXECUTOR WARNING] Auto-calc temporal NDBI: {exc}")
 
+                # Add target-specific semantic evidence without changing the
+                # raw temporal index results or the global change detector.
+                semantic_target = str(
+                    context.get("target") or context.get("metric") or ""
+                ).lower()
+                semantic_config = {
+                    "vegetation": (
+                        "ndvi",
+                        (WC_TREE_COVER, WC_SHRUBLAND, WC_GRASSLAND, WC_CROPLAND),
+                        b_bands.get("red"),
+                        a_bands.get("red"),
+                    ),
+                    "water": (
+                        "ndwi",
+                        (WC_WATER,),
+                        b_bands.get("green"),
+                        a_bands.get("green"),
+                    ),
+                }.get(semantic_target)
+                if semantic_config and m_b is not None and m_a is not None:
+                    semantic_index, baseline_classes, before_index_path, after_index_path = semantic_config
+                    try:
+                        if semantic_index == "ndvi":
+                            semantic_result = get_tool("calculate_temporal_ndvi")(
+                                red_before=_read_raster(b_bands["red"]),
+                                nir_before=_read_raster(b_bands["nir"]),
+                                red_after=_read_raster(a_bands["red"]),
+                                nir_after=_read_raster(a_bands["nir"]),
+                                mask_before=m_b,
+                                mask_after=m_a,
+                            )
+                        else:
+                            semantic_result = get_tool("calculate_temporal_ndwi")(
+                                green_before=_read_raster(b_bands["green"]),
+                                nir_before=_read_raster(b_bands["nir"]),
+                                green_after=_read_raster(a_bands["green"]),
+                                nir_after=_read_raster(a_bands["nir"]),
+                                mask_before=m_b,
+                                mask_after=m_a,
+                            )
+                        baseline = _load_worldcover_baseline_mask(
+                            before_index_path,
+                            target_classes=baseline_classes,
+                        )
+                        if baseline is None:
+                            baseline = np.full(
+                                semantic_result["valid_mask"].shape,
+                                8,
+                                dtype=np.uint8,
+                            )
+                        semantic_payload = _build_landcover_semantic_result(
+                            index_result=semantic_result,
+                            baseline=baseline,
+                            target=semantic_target,
+                            before=before_img,
+                            after=after_img,
+                            index_before_path=before_index_path,
+                            index_after_path=after_index_path,
+                        )
+                        results[f"calculate_temporal_{semantic_index}"][
+                            f"{semantic_index}_semantic"
+                        ] = semantic_payload
+                        results[f"calculate_temporal_{semantic_index}"][
+                            f"{semantic_index}_semantic_source"
+                        ] = semantic_result
+                    except Exception as exc:
+                        print(
+                            f"[EXECUTOR WARNING] {semantic_target.title()} semantics unavailable: {exc}"
+                        )
+
             # Determine primary index based on query context / target / task
             req_metric = str(context.get("metric") or "").lower()
             req_target = str(context.get("target") or "").lower()
@@ -1725,6 +2099,24 @@ def execute_plan(
                     b_arr = t_res.get(f"{idx_name}_before")
                     a_arr = t_res.get(f"{idx_name}_after")
                     v_mask = t_res.get("valid_mask")
+                    semantic_key = (
+                        "urban_semantic"
+                        if idx_name == "ndbi" and req_target == "urban"
+                        else f"{idx_name}_semantic"
+                        if req_target in ("vegetation", "water")
+                        and idx_name == primary_index
+                        else None
+                    )
+                    semantic_result = t_res.get(semantic_key) if semantic_key else None
+                    semantic_source = (
+                        t_res.get(f"{idx_name}_semantic_source")
+                        if semantic_result is not None
+                        else None
+                    )
+                    if semantic_source is not None:
+                        b_arr = semantic_source.get(f"{idx_name}_before")
+                        a_arr = semantic_source.get(f"{idx_name}_after")
+                        v_mask = semantic_source.get("valid_mask")
                     if b_arr is not None and a_arr is not None:
                         try:
                             chg_res = tool(
@@ -1733,6 +2125,45 @@ def execute_plan(
                                 threshold=threshold,
                                 valid_mask=v_mask,
                             )
+                            if semantic_result is not None:
+                                candidate_mask = semantic_result["candidate_mask"]
+                                support_mask = semantic_result["support_mask"]
+                                raw_change = chg_res["change_map"]
+                                changed_mask = (
+                                    support_mask
+                                    & np.isfinite(raw_change)
+                                    & (np.abs(raw_change) >= threshold)
+                                )
+                                candidate_pixels = int(np.sum(candidate_mask))
+                                changed_pixels = int(np.sum(changed_mask))
+                                chg_res["change_map"] = np.where(
+                                    support_mask,
+                                    raw_change,
+                                    np.nan,
+                                )
+                                chg_res["valid_pixels"] = int(np.sum(v_mask))
+                                chg_res["changed_pixels"] = changed_pixels
+                                chg_res["change_ratio"] = (
+                                    changed_pixels / chg_res["valid_pixels"]
+                                    if chg_res["valid_pixels"] > 0 else 0.0
+                                )
+                                chg_res["mean_before"] = float(
+                                    np.mean(b_arr[candidate_mask])
+                                ) if candidate_pixels else None
+                                chg_res["mean_after"] = float(
+                                    np.mean(a_arr[candidate_mask])
+                                ) if candidate_pixels else None
+                                chg_res["mean_change"] = (
+                                    chg_res["mean_after"] - chg_res["mean_before"]
+                                    if candidate_pixels else None
+                                )
+                                chg_res["increased_pixels"] = int(
+                                    np.sum(changed_mask & (raw_change > 0))
+                                )
+                                chg_res["decreased_pixels"] = int(
+                                    np.sum(changed_mask & (raw_change < 0))
+                                )
+                                chg_res[semantic_key] = semantic_result
                             # Find georeferenced source raster
                             src_path = None
                             if imagery_result is not None:

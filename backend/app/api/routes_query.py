@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+
 from app import config
 from app.config import BACKEND_DIR, load_env_file
 
@@ -1177,6 +1179,15 @@ def process_query(
                 "threshold"
             )
         )
+
+        for semantic_key in ("urban_semantic", "ndvi_semantic", "ndwi_semantic"):
+            semantic = change_result.get(semantic_key)
+            if semantic:
+                statistics[semantic_key] = {
+                    key: value
+                    for key, value in semantic.items()
+                    if not isinstance(value, np.ndarray)
+                }
 
     # --------------------------------------------------------
     # Extract statistics for all temporal indices

@@ -1,6 +1,12 @@
 import numpy as np
 
 
+# The existing spectral deadband convention is 0.02. For NDBI, use the
+# same value as a denominator stability floor because the investigation found
+# 13,515 joint pixels with abs(SWIR + NIR) below this boundary.
+NDBI_DENOMINATOR_FLOOR = 0.02
+
+
 def calculate_ndbi(
     swir: np.ndarray,
     nir: np.ndarray,
@@ -46,7 +52,9 @@ def calculate_ndbi(
 
     denominator = swir + nir
 
-    valid_pixels = valid_mask & (denominator != 0)
+    valid_pixels = valid_mask & (
+        np.abs(denominator) >= NDBI_DENOMINATOR_FLOOR
+    )
 
     ndbi = np.full(
         swir.shape,
