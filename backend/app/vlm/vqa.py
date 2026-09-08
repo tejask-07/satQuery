@@ -3,6 +3,7 @@
 from typing import Any, Optional
 
 from app.vlm.model import VLM
+from app.vlm.rs_prompts import build_rs_prompt
 
 
 VQA_PROMPT = """You are performing single-image remote-sensing visual question answering for SatQuery.
@@ -45,10 +46,10 @@ def run_vqa(
         raise ValueError("question must be a non-empty string")
 
     normalized_modality = modality.strip().lower() if isinstance(modality, str) else "unknown"
-    prompt = VQA_PROMPT.format(
+    prompt = build_rs_prompt(VQA_PROMPT.format(
         question=question.strip(),
         modality=normalized_modality,
-    )
+    ))
 
     vlm = VLM()
     answer = vlm.generate(

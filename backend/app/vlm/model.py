@@ -1,6 +1,7 @@
 import base64
 import io
 import os
+from pathlib import Path
 from typing import Dict, Optional
 
 from huggingface_hub import InferenceClient
@@ -16,8 +17,15 @@ MODEL_ID = "Qwen/Qwen2.5-VL-72B-Instruct"
 
 
 class VLM:
-    def __init__(self):
+    def __init__(self, adapter_path: Optional[str] = None):
+        self.local_model = None
+        self.processor = None
         token = os.getenv("HF_TOKEN")
+
+        configured_adapter = adapter_path or os.getenv("SATQUERY_RS_VLM_ADAPTER_PATH")
+        if configured_adapter:
+            self._load_local_adapter(Path(configured_adapter))
+            return
 
         if not token:
             raise RuntimeError(
@@ -28,6 +36,76 @@ class VLM:
             provider="auto",
             api_key=token,
         )
+
+    def _load_local_adapter(self, adapter_path: Path) -> None:
+        """Load the one RS adapter lazily, without changing hosted inference."""
+        try:
+            import torch
+            from peft import PeftModel
+            from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+        except ImportError as exc:
+            raise RuntimeError(
+                "Local RS-VLM inference requires transformers and peft."
+            ) from exc
+
+        if not (adapter_path / "adapter_config.json").is_file():
+            raise FileNotFoundError(f"RS-VLM adapter config not found: {adapter_path}")
+        base_model = os.getenv("SATQUERY_RS_VLM_BASE_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct")
+        requested_device = os.getenv("SATQUERY_RS_VLM_DEVICE", "auto")
+        if requested_device == "auto":
+            requested_device = "cuda" if torch.cuda.is_available() else "cpu"
+        dtype_name = os.getenv("SATQUERY_RS_VLM_DTYPE", "auto")
+        if dtype_name == "auto":
+            dtype = torch.bfloat16 if requested_device == "cuda" and torch.cuda.is_bf16_supported() else torch.float32
+        else:
+            dtype = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}.get(dtype_name)
+            if dtype is None:
+                raise ValueError("SATQUERY_RS_VLM_DTYPE must be auto, float32, float16, or bfloat16")
+        self.processor = AutoProcessor.from_pretrained(str(adapter_path))
+        base = Qwen2_5_VLForConditionalGeneration.from_pretrained(base_model, torch_dtype=dtype)
+        base.to(requested_device)
+        self.local_model = PeftModel.from_pretrained(base, str(adapter_path))
+        self.local_model.eval()
+
+    def _build_local_content(self, image_items, prompt: str) -> list[dict]:
+        content = []
+        for label, image in image_items:
+            content.extend(
+                [
+                    {"type": "text", "text": f"\n--- {label.upper()} ---"},
+                    {"type": "image", "image": self.image_to_data_url(image)},
+                ]
+            )
+        content.append({"type": "text", "text": prompt})
+        return content
+
+    def _generate_local(self, image_items, prompt: str) -> str:
+        """Run the same adapter for VQA, captions, and general RS reasoning."""
+        from qwen_vl_utils import process_vision_info
+
+        content = self._build_local_content(image_items, prompt)
+        messages = [{"role": "user", "content": content}]
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        device = next(self.local_model.parameters()).device
+        inputs = inputs.to(device)
+        generated = self.local_model.generate(**inputs, max_new_tokens=512)
+        generated_trimmed = [
+            output_ids[len(input_ids):]
+            for input_ids, output_ids in zip(inputs.input_ids, generated)
+        ]
+        return self.processor.batch_decode(
+            generated_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0].strip()
 
     @staticmethod
     def image_to_data_url(
@@ -296,6 +374,12 @@ USER QUESTION
 {examples_section}
 {evidence_text}
 """
+
+        if self.local_model is not None:
+            answer = self._generate_local(image_items, prompt)
+            if not answer:
+                raise RuntimeError("RS-VLM returned an empty response.")
+            return answer
 
         # =====================================================
         # MESSAGE CONTENT

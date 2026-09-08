@@ -3,6 +3,7 @@
 from typing import Any, Optional
 
 from app.vlm.model import VLM
+from app.vlm.rs_prompts import build_rs_prompt
 
 
 CAPTION_PROMPT = """You are performing single-image remote-sensing captioning for SatQuery.
@@ -37,7 +38,7 @@ def run_caption(
         if isinstance(modality, str)
         else "unknown"
     )
-    prompt = CAPTION_PROMPT.format(modality=normalized_modality)
+    prompt = build_rs_prompt(CAPTION_PROMPT.format(modality=normalized_modality))
 
     vlm = VLM()
     caption = vlm.generate(
