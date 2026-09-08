@@ -70,6 +70,27 @@ Starting values are rank 16, alpha 32, dropout 0.05, learning rate 2e-4, two epo
 
 The collator passes image tensors to Qwen2.5-VL and masks user/image prompt tokens with `-100`; only assistant answer tokens contribute to the supervised loss. `quantization_4bit` is disabled by default. Enable it only on a verified CUDA/bitsandbytes environment.
 
+## Model/processor smoke test
+
+Run this before training. It reports installed versions for Torch, Transformers, PEFT, Datasets, Accelerate, Pillow, optional Torchvision, and optional `qwen-vl-utils`. It reads the first image from the prepared manifest, verifies the TIFF, converts it to RGB, builds one Qwen multimodal prompt, loads `Qwen/Qwen2.5-VL-3B-Instruct`, and runs one forward pass. It never trains and never creates a LoRA adapter.
+
+```powershell
+$env:PYTHONPATH = "backend"
+python -m app.vlm.rs_training.smoke_test `
+  --model Qwen/Qwen2.5-VL-3B-Instruct `
+  --manifest backend/data/rs_vlm/manifest.jsonl
+```
+
+To validate only the processor after dependencies are installed, without loading the 3B model weights:
+
+```powershell
+python -m app.vlm.rs_training.smoke_test `
+  --manifest backend/data/rs_vlm/manifest.jsonl `
+  --skip-forward
+```
+
+Approximate requirements: the 3B checkpoint generally needs several GB of download/cache storage, with roughly 6-8 GB for FP16/BF16 weights plus processor/cache overhead. A CPU run may need 16 GB or more system RAM; GPU execution is more practical with at least 8-12 GB VRAM depending on dtype and image sequence length. These are estimates, not guarantees. The current audited environment is not ready: Torch and Transformers are absent, and no model smoke load was executed.
+
 ## Evaluation
 
 Base and adapted generations use the same manifest:

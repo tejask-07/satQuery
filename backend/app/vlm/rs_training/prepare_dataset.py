@@ -122,7 +122,11 @@ def _annotation_records(root: Path) -> tuple[list[dict[str, Any]], dict[str, int
             answer = _value(question_item, ("answer", "answers", "label"))
             if answer is None and question_id is not None:
                 answer = answer_by_question.get(question_id)
-            image = image_by_id.get(image_id) if image_id is not None else None
+            # RSVQA-LR stores extracted files as Images_LR/<image id>.tif.
+            # Prefer that canonical id mapping over the descriptive original_name.
+            image = f"{image_id}.tif" if image_id is not None and image_id.isdigit() else None
+            if image is None:
+                image = image_by_id.get(image_id) if image_id is not None else None
             if image is None:
                 image = _value(question_item, ("file_name", "filename", "path", "image"))
             if question is None or answer is None:
