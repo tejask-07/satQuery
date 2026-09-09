@@ -446,6 +446,6 @@ def test_p2_remains_functional_when_p4_fails():
         assert len(result.answer) > 10  # Fallback explanation used
         assert result.statistics is not None
         assert "mean_change" in result.statistics or "metric" in result.statistics
-        assert any("P4 VLM unavailable; using backend explanation" in trace for trace in result.execution_trace)
+        assert any("RS-VLM unavailable; using backend explanation" in trace for trace in result.execution_trace)
         assert result.evidence_package is not None
         assert "statistics" in result.evidence_package

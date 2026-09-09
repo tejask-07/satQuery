@@ -4,10 +4,14 @@ export interface QueryPlan {
   time_start: string;
   time_end: string;
   modalities: string[];
+  intent?: string;
   metric?: string;
   direction?: string;
   analysis: string[];
   output: string[];
+  outputs?: string[];
+  primary_indicators?: string[];
+  supporting_indicators?: string[];
   aoi?: unknown;
 }
 
@@ -29,22 +33,41 @@ export interface QueryResponse {
     change_map?: string;
   };
   layer_package?: Record<string, any>;
+  multi_index_evidence?: Record<string, any>;
   evidence_package?: Record<string, unknown>;
+  candidates?: Record<string, any>[];
+  candidate_package?: Record<string, any>;
   interpretation?: Record<string, any>;
   spatial_analysis?: Record<string, any>;
   temporal_analysis?: Record<string, any>;
   calibration?: Record<string, any>;
+  model?: Record<string, any>;
+  execution_summary?: Record<string, any>;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export async function submitQuery(
   query: string,
-  aoi?: unknown
+  aoi?: unknown,
+  timeStart?: string,
+  timeEnd?: string
 ): Promise<QueryResponse> {
-  const payload: { query: string; aoi?: unknown } = { query };
+  const payload: {
+    query: string;
+    aoi?: unknown;
+    time_start?: string;
+    time_end?: string;
+  } = { query };
+
   if (aoi) {
     payload.aoi = aoi;
+  }
+  if (timeStart && timeStart.trim()) {
+    payload.time_start = timeStart.trim();
+  }
+  if (timeEnd && timeEnd.trim()) {
+    payload.time_end = timeEnd.trim();
   }
 
   const controller = new AbortController();
@@ -64,8 +87,17 @@ export async function submitQuery(
       let errorDetail = `Query failed with status ${response.status}`;
       try {
         const errJson = await response.json();
-        if (errJson?.detail) {
-          errorDetail = String(errJson.detail);
+        if (Array.isArray(errJson?.detail)) {
+          errorDetail = errJson.detail
+            .map((d: any) => `${d.loc ? d.loc.join(".") + ": " : ""}${d.msg || JSON.stringify(d)}`)
+            .join(", ");
+        } else if (errJson?.detail) {
+          errorDetail =
+            typeof errJson.detail === "object"
+              ? (errJson.detail.message || JSON.stringify(errJson.detail))
+              : String(errJson.detail);
+        } else if (errJson?.message) {
+          errorDetail = String(errJson.message);
         }
       } catch {
         // ignore
@@ -77,7 +109,7 @@ export async function submitQuery(
   } catch (err: any) {
     if (err?.name === "AbortError") {
       throw new Error(
-        "Query request timed out after 90 seconds. The satellite imagery search or index calculation is taking longer than expected."
+        "Query request timed out after 300 seconds. The satellite imagery search or index calculation is taking longer than expected."
       );
     }
     throw new Error(err.message || "Failed to process query");

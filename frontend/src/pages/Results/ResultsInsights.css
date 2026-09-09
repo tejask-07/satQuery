@@ -17,12 +17,12 @@
 
   box-sizing: border-box;
 
-  padding: 26px 40px 32px;
+  padding: 26px 40px 48px;
 
   background: var(--paper);
   color: var(--ink);
 
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 
@@ -33,14 +33,84 @@
 .results-page-header {
   width: 100%;
 
-  display: none;
-  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
 
-  gap: 9px;
-
-  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+  margin-bottom: 22px;
 
   box-sizing: border-box;
+}
+
+.results-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.results-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.results-nav-button {
+  background: none;
+  border: 0;
+  padding: 0;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  letter-spacing: 0.4px;
+
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.results-nav-button:hover {
+  color: var(--ink);
+}
+
+.results-nav-button.accent {
+  color: #277f8a;
+}
+
+.results-nav-button.accent:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.results-page-header h1 {
+  margin: 0;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    Arial,
+    sans-serif;
+
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 700;
+
+  line-height: 1;
+
+  letter-spacing: -0.8px;
+}
+
+.results-header-meta {
+  text-align: right;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--muted);
 }
 
 .results-page-number {
@@ -56,23 +126,8 @@
   line-height: 1;
 
   letter-spacing: 0.2px;
-}
-
-.results-page-header h1 {
-  margin: 0;
-
-  font-family:
-    "Lexend Deca",
-    "Lexend",
-    Arial,
-    sans-serif;
-
-  font-size: 20px;
-  font-weight: 700;
-
-  line-height: 1;
-
-  letter-spacing: 0.15px;
+  color: var(--muted);
+  margin-bottom: 6px;
 }
 
 
@@ -83,18 +138,16 @@
 .results-card {
   width: 100%;
 
-  height: calc(100dvh - 94px);
-
-  min-height: 0;
+  min-height: calc(100dvh - 160px);
 
   display: grid;
 
   grid-template-columns:
-    minmax(0, 1.55fr)
-    minmax(360px, 0.95fr);
+    minmax(0, 1.45fr)
+    minmax(350px, 0.95fr);
 
   grid-template-rows:
-    50px
+    46px
     minmax(0, 1fr);
 
   box-sizing: border-box;
@@ -382,9 +435,19 @@
     "JetBrainsMono Nerd Font",
     monospace;
 
-  font-size: 7px;
+  font-size: 8px;
 
   color: rgba(245, 241, 233, 0.65);
+  background: #222a25;
+  border: 1px solid var(--soft-line);
+  position: relative;
+}
+
+.evidence-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 
@@ -551,6 +614,18 @@
   letter-spacing: -1px;
 }
 
+.confidence-ring.unavailable {
+  background: conic-gradient(#dce2d9 0deg 360deg) !important;
+  border: 1px dashed rgba(17, 17, 15, 0.25);
+}
+
+.confidence-ring-inner span.unavailable {
+  font-size: 13px !important;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+
 .confidence-status {
   margin-top: 7px;
 
@@ -561,9 +636,58 @@
     "JetBrainsMono Nerd Font",
     monospace;
 
-  font-size: 7px;
+  font-size: 8px;
 
   color: var(--muted);
+}
+
+.confidence-status.unavailable {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.execution-summary-section {
+  padding: 21px 30px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.execution-step-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.execution-step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(17, 17, 15, 0.04);
+  border: 1px solid var(--soft-line);
+  border-radius: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.execution-step-chip.completed {
+  border-color: rgba(39, 127, 138, 0.35);
+  color: #176069;
+  background: rgba(39, 127, 138, 0.06);
+}
+
+.execution-model-badge {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 8px;
+  background: rgba(39, 127, 138, 0.08);
+  border: 1px solid rgba(39, 127, 138, 0.25);
+  border-radius: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  color: #176069;
 }
 
 

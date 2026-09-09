@@ -656,6 +656,78 @@ def sanitize_optical_sar_metadata(data: Any) -> Any:
         return data
 
 
+def _extract_optical_sar_confidence(
+    sar_res: dict,
+    metadata: Optional[dict] = None,
+) -> Optional[float]:
+    """
+    Extract confidence score for the Optical-SAR response.
+    - Prefers RS-VLM/model confidence if provided.
+    - Otherwise derives confidence from deterministic evidence/fusion if available.
+    - Returns None if no trustworthy confidence source exists (never invents a number).
+    """
+    if not isinstance(sar_res, dict):
+        return None
+
+    # 1. Prefer RS-VLM / model confidence
+    model_conf = sar_res.get("confidence")
+    if model_conf is None:
+        model_obj = sar_res.get("model")
+        if isinstance(model_obj, dict):
+            model_conf = model_obj.get("confidence")
+    if model_conf is None:
+        vlm_res = (
+            sar_res.get("vlm_res")
+            or sar_res.get("rs_vlm")
+            or sar_res.get("vlm_result")
+        )
+        if isinstance(vlm_res, dict):
+            model_conf = vlm_res.get("confidence")
+
+    if model_conf is not None:
+        try:
+            val = float(model_conf)
+            if 0.0 <= val <= 1.0:
+                return val
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Otherwise derive from existing deterministic evidence/fusion result
+    meta = metadata if isinstance(metadata, dict) else sar_res.get("metadata", {})
+    deterministic_sources = [
+        sar_res.get("fusion_result"),
+        sar_res.get("fusion"),
+        sar_res.get("deterministic_result"),
+        sar_res.get("evidence"),
+        sar_res.get("calibration"),
+        meta,
+    ]
+    for source in deterministic_sources:
+        if isinstance(source, dict):
+            cand = source.get("confidence") or source.get("confidence_score")
+            if cand is not None:
+                try:
+                    val = float(cand)
+                    if 0.0 <= val <= 1.0:
+                        return val
+                except (ValueError, TypeError):
+                    pass
+        elif isinstance(source, list):
+            for item in source:
+                if isinstance(item, dict):
+                    cand = item.get("confidence") or item.get("confidence_score")
+                    if cand is not None:
+                        try:
+                            val = float(cand)
+                            if 0.0 <= val <= 1.0:
+                                return val
+                        except (ValueError, TypeError):
+                            pass
+
+    # 3. If no trustworthy confidence source exists, return None
+    return None
+
+
 def _build_optical_sar_api_response(
     plan: QueryPlan,
     query: str,
@@ -792,10 +864,12 @@ def _build_optical_sar_api_response(
     }
     statistics_dict = sanitize_optical_sar_metadata(statistics_dict)
 
+    confidence = _extract_optical_sar_confidence(sar_res, metadata)
+
     return AnalysisResult(
         status="success",
         answer=sar_res.get("answer"),
-        confidence=0.9,
+        confidence=confidence,
         plan=plan.model_dump(),
         statistics=statistics_dict,
         layers=layers,

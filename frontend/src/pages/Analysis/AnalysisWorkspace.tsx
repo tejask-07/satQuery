@@ -1,14 +1,14 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type L from "leaflet";
 
 import type { QueryResponse } from "../../api/query";
 
 import {
+  ImageOverlay,
   MapContainer,
-  TileLayer,
   Polygon,
   Rectangle,
-  ImageOverlay,
+  TileLayer,
   useMap,
   useMapEvents,
 } from "react-leaflet";
@@ -16,7 +16,8 @@ import {
 import "leaflet/dist/leaflet.css";
 import "./AnalysisWorkspace.css";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export interface AoiGeoJson {
   type: "Polygon";
@@ -36,7 +37,7 @@ type LatLng = [number, number];
 type LeafletBounds = [LatLng, LatLng];
 
 /* ============================================================
-   MAP VIEWPORT CONTROLLER
+   MAP VIEWPORT
    ============================================================ */
 
 function MapViewportController({
@@ -51,7 +52,7 @@ function MapViewportController({
   useEffect(() => {
     if (bounds) {
       map.fitBounds(bounds, {
-        padding: [40, 40],
+        padding: [50, 50],
         maxZoom: 15,
         animate: false,
       });
@@ -66,231 +67,19 @@ function MapViewportController({
 }
 
 /* ============================================================
-   AOI DRAW HANDLER
-   ============================================================ */
-
-interface AoiDrawHandlerProps {
-  isDrawing: boolean;
-  onAoiDrawn: (aoi: AoiGeoJson) => void;
-  onDrawingCancel: () => void;
-}
-
-function AoiDrawHandler({
-  isDrawing,
-  onAoiDrawn,
-  onDrawingCancel,
-}: AoiDrawHandlerProps) {
-  const map = useMap();
-
-  const [startPoint, setStartPoint] =
-    useState<L.LatLng | null>(null);
-
-  const [currentPoint, setCurrentPoint] =
-    useState<L.LatLng | null>(null);
-
-  const isShiftDraggingRef = useRef(false);
-
-  // Restore and guarantee map dragging and controls are enabled
-  useEffect(() => {
-    const container = map.getContainer();
-
-    // Map dragging, touch zoom, and scroll zoom must stay ENABLED so user can pan/zoom freely
-    map.dragging.enable();
-    map.touchZoom.enable();
-    map.scrollWheelZoom.enable();
-    map.doubleClickZoom.enable();
-    map.boxZoom.enable();
-
-    if (isDrawing) {
-      container.style.cursor = "crosshair";
-    } else {
-      container.style.cursor = "";
-      setStartPoint(null);
-      setCurrentPoint(null);
-      isShiftDraggingRef.current = false;
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isDrawing) {
-        setStartPoint(null);
-        setCurrentPoint(null);
-        isShiftDraggingRef.current = false;
-        map.dragging.enable();
-        onDrawingCancel();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      map.dragging.enable();
-      map.touchZoom.enable();
-      map.scrollWheelZoom.enable();
-      map.doubleClickZoom.enable();
-      map.boxZoom.enable();
-      container.style.cursor = "";
-    };
-  }, [isDrawing, map, onDrawingCancel]);
-
-  const finishDrawing = (
-    pt1: L.LatLng,
-    pt2: L.LatLng
-  ) => {
-    const south = Math.min(pt1.lat, pt2.lat);
-    const north = Math.max(pt1.lat, pt2.lat);
-    const west = Math.min(pt1.lng, pt2.lng);
-    const east = Math.max(pt1.lng, pt2.lng);
-
-    setStartPoint(null);
-    setCurrentPoint(null);
-    isShiftDraggingRef.current = false;
-    map.dragging.enable();
-
-    if (
-      north - south >= 0.0005 &&
-      east - west >= 0.0005
-    ) {
-      const westNum = Number(west.toFixed(6));
-      const eastNum = Number(east.toFixed(6));
-      const southNum = Number(south.toFixed(6));
-      const northNum = Number(north.toFixed(6));
-
-      const geojson: AoiGeoJson = {
-        type: "Polygon",
-        coordinates: [
-          [
-            [westNum, southNum],
-            [eastNum, southNum],
-            [eastNum, northNum],
-            [westNum, northNum],
-            [westNum, southNum],
-          ],
-        ],
-      };
-
-      onAoiDrawn(geojson);
-    }
-  };
-
-  useMapEvents({
-    mousedown(e) {
-      if (!isDrawing) return;
-
-      // Right-click or middle-click cancels drawing
-      if (e.originalEvent.button !== 0) {
-        setStartPoint(null);
-        setCurrentPoint(null);
-        isShiftDraggingRef.current = false;
-        map.dragging.enable();
-        onDrawingCancel();
-        return;
-      }
-
-      // Shift + Drag draws rectangle directly
-      if (e.originalEvent.shiftKey) {
-        map.dragging.disable();
-        isShiftDraggingRef.current = true;
-        setStartPoint(e.latlng);
-        setCurrentPoint(e.latlng);
-      }
-    },
-
-    mousemove(e) {
-      if (!isDrawing || !startPoint) return;
-      setCurrentPoint(e.latlng);
-    },
-
-    mouseup(e) {
-      if (!isDrawing) return;
-
-      if (isShiftDraggingRef.current && startPoint) {
-        map.dragging.enable();
-        finishDrawing(startPoint, e.latlng);
-        return;
-      }
-    },
-
-    click(e) {
-      if (!isDrawing) return;
-      if (isShiftDraggingRef.current) return;
-
-      // First click: place start corner
-      if (!startPoint) {
-        setStartPoint(e.latlng);
-        setCurrentPoint(e.latlng);
-        return;
-      }
-
-      // Second click: finish AOI rectangle
-      finishDrawing(startPoint, e.latlng);
-    },
-  });
-
-  if (
-    isDrawing &&
-    startPoint &&
-    currentPoint
-  ) {
-    const bounds: LeafletBounds = [
-      [
-        Math.min(
-          startPoint.lat,
-          currentPoint.lat
-        ),
-        Math.min(
-          startPoint.lng,
-          currentPoint.lng
-        ),
-      ],
-      [
-        Math.max(
-          startPoint.lat,
-          currentPoint.lat
-        ),
-        Math.max(
-          startPoint.lng,
-          currentPoint.lng
-        ),
-      ],
-    ];
-
-    return (
-      <Rectangle
-        bounds={bounds}
-        pathOptions={{
-          color: "#f4c43b",
-          weight: 2,
-          dashArray: "4, 4",
-          fillColor: "#f4c43b",
-          fillOpacity: 0.15,
-        }}
-      />
-    );
-  }
-
-  return null;
-}
-
-/* ============================================================
-   MAP CONTROL BRIDGE
+   MAP CONTROLS
    ============================================================ */
 
 function MapControlBridge() {
   const map = useMap();
 
   useEffect(() => {
-    const zoomIn = () => {
-      map.zoomIn();
-    };
-
-    const zoomOut = () => {
-      map.zoomOut();
-    };
+    const zoomIn = () => map.zoomIn();
+    const zoomOut = () => map.zoomOut();
 
     const locate = () => {
       map.fitBounds(map.getBounds(), {
-        padding: [30, 30],
+        padding: [40, 40],
       });
     };
 
@@ -331,6 +120,254 @@ function MapControlBridge() {
 }
 
 /* ============================================================
+   AOI DRAW HANDLER
+   ============================================================ */
+
+interface AoiDrawHandlerProps {
+  isDrawing: boolean;
+  onAoiDrawn: (aoi: AoiGeoJson) => void;
+  onDrawingCancel: () => void;
+}
+
+function AoiDrawHandler({
+  isDrawing,
+  onAoiDrawn,
+  onDrawingCancel,
+}: AoiDrawHandlerProps) {
+  const map = useMap();
+
+  const [startPoint, setStartPoint] =
+    useState<L.LatLng | null>(null);
+
+  const [currentPoint, setCurrentPoint] =
+    useState<L.LatLng | null>(null);
+
+  const shiftDragRef = useRef(false);
+
+  useEffect(() => {
+    const container = map.getContainer();
+
+    map.dragging.enable();
+    map.touchZoom.enable();
+    map.scrollWheelZoom.enable();
+    map.doubleClickZoom.enable();
+    map.boxZoom.enable();
+
+    if (isDrawing) {
+      container.style.cursor = "crosshair";
+    } else {
+      container.style.cursor = "";
+      setStartPoint(null);
+      setCurrentPoint(null);
+      shiftDragRef.current = false;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isDrawing) {
+        setStartPoint(null);
+        setCurrentPoint(null);
+        shiftDragRef.current = false;
+        map.dragging.enable();
+        onDrawingCancel();
+      }
+    };
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+
+      map.dragging.enable();
+      map.touchZoom.enable();
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
+      map.boxZoom.enable();
+
+      container.style.cursor = "";
+    };
+  }, [isDrawing, map, onDrawingCancel]);
+
+  const finishDrawing = (
+    first: L.LatLng,
+    second: L.LatLng
+  ) => {
+    const south = Math.min(
+      first.lat,
+      second.lat
+    );
+
+    const north = Math.max(
+      first.lat,
+      second.lat
+    );
+
+    const west = Math.min(
+      first.lng,
+      second.lng
+    );
+
+    const east = Math.max(
+      first.lng,
+      second.lng
+    );
+
+    setStartPoint(null);
+    setCurrentPoint(null);
+    shiftDragRef.current = false;
+
+    map.dragging.enable();
+
+    if (
+      north - south < 0.0005 ||
+      east - west < 0.0005
+    ) {
+      return;
+    }
+
+    const polygon: AoiGeoJson = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [
+            Number(west.toFixed(6)),
+            Number(south.toFixed(6)),
+          ],
+          [
+            Number(east.toFixed(6)),
+            Number(south.toFixed(6)),
+          ],
+          [
+            Number(east.toFixed(6)),
+            Number(north.toFixed(6)),
+          ],
+          [
+            Number(west.toFixed(6)),
+            Number(north.toFixed(6)),
+          ],
+          [
+            Number(west.toFixed(6)),
+            Number(south.toFixed(6)),
+          ],
+        ],
+      ],
+    };
+
+    onAoiDrawn(polygon);
+  };
+
+  useMapEvents({
+    mousedown(event) {
+      if (!isDrawing) return;
+
+      if (event.originalEvent.button !== 0) {
+        setStartPoint(null);
+        setCurrentPoint(null);
+        shiftDragRef.current = false;
+        map.dragging.enable();
+        onDrawingCancel();
+        return;
+      }
+
+      if (event.originalEvent.shiftKey) {
+        map.dragging.disable();
+
+        shiftDragRef.current = true;
+
+        setStartPoint(event.latlng);
+        setCurrentPoint(event.latlng);
+      }
+    },
+
+    mousemove(event) {
+      if (!isDrawing || !startPoint) return;
+
+      setCurrentPoint(event.latlng);
+    },
+
+    mouseup(event) {
+      if (!isDrawing) return;
+
+      if (
+        shiftDragRef.current &&
+        startPoint
+      ) {
+        finishDrawing(
+          startPoint,
+          event.latlng
+        );
+      }
+    },
+
+    click(event) {
+      if (!isDrawing) return;
+
+      if (shiftDragRef.current) return;
+
+      if (!startPoint) {
+        setStartPoint(event.latlng);
+        setCurrentPoint(event.latlng);
+        return;
+      }
+
+      finishDrawing(
+        startPoint,
+        event.latlng
+      );
+    },
+  });
+
+  if (
+    isDrawing &&
+    startPoint &&
+    currentPoint
+  ) {
+    const bounds: LeafletBounds = [
+      [
+        Math.min(
+          startPoint.lat,
+          currentPoint.lat
+        ),
+        Math.min(
+          startPoint.lng,
+          currentPoint.lng
+        ),
+      ],
+      [
+        Math.max(
+          startPoint.lat,
+          currentPoint.lat
+        ),
+        Math.max(
+          startPoint.lng,
+          currentPoint.lng
+        ),
+      ],
+    ];
+
+    return (
+      <Rectangle
+        bounds={bounds}
+        pathOptions={{
+          color: "#f4c43b",
+          weight: 2,
+          dashArray: "6 5",
+          fillColor: "#f4c43b",
+          fillOpacity: 0.12,
+        }}
+      />
+    );
+  }
+
+  return null;
+}
+
+/* ============================================================
    MAIN COMPONENT
    ============================================================ */
 
@@ -342,13 +379,81 @@ function AnalysisWorkspace({
   onRequery,
   loading = false,
 }: AnalysisWorkspaceProps) {
-  const { plan } = result;
+  const plan = result.plan as any;
+  const statistics = (result.statistics ??
+    {}) as any;
 
-  /* ============================================================
-     DRAWING AND LAYER STATE
-     ============================================================ */
+  const taskName = String(
+    plan?.task ?? ""
+  ).toLowerCase();
 
-  const [showChangeLayer, setShowChangeLayer] =
+  const planAny = plan as any;
+
+  const intentName = String(
+    planAny?.intent ?? ""
+  ).toLowerCase();
+
+  const isVqa =
+    taskName === "vqa" ||
+    taskName === "visual_qa" ||
+    taskName === "visual_question_answering" ||
+    taskName.includes("vqa") ||
+    taskName.includes("visual_question") ||
+    intentName === "vqa" ||
+    intentName.includes("visual_question");
+
+  const isOpticalSar =
+    taskName.includes("optical_sar") ||
+    taskName.includes("optical-sar") ||
+    taskName.includes("sar_optical") ||
+    intentName.includes("optical_sar") ||
+    intentName.includes("optical-sar") ||
+    (taskName.includes("sar") && taskName.includes("optical")) ||
+    (intentName.includes("sar") && intentName.includes("optical"));
+
+  const isCaption =
+    taskName === "caption" ||
+    taskName === "image_captioning" ||
+    taskName.includes("caption") ||
+    intentName === "caption" ||
+    intentName.includes("caption");
+
+  const isImageSearch =
+    taskName === "image_search" ||
+    taskName === "search_imagery" ||
+    intentName === "image_search" ||
+    (Array.isArray(plan?.analysis) &&
+      plan.analysis.length === 1 &&
+      plan.analysis[0] === "search_imagery" &&
+      taskName !== "change_detection");
+
+  const isIndexMap =
+    taskName === "vegetation_index" ||
+    taskName === "water_index" ||
+    taskName === "urban_index" ||
+    Boolean(
+      taskName &&
+      taskName.includes("_index") &&
+      !taskName.includes("change")
+    );
+
+  const isChangeTask =
+    !isImageSearch &&
+    !isVqa &&
+    !isCaption &&
+    !isOpticalSar &&
+    !isIndexMap &&
+    (taskName === "change_detection" ||
+      taskName.includes("change") ||
+      intentName.includes("change") ||
+      (Array.isArray(plan?.analysis) && plan.analysis.includes("detect_change")) ||
+      (Array.isArray((result as any).layers) &&
+        (result as any).layers.some((l: any) => String(l?.id || "").startsWith("change_"))));
+
+  // The workspace is one route; the backend result selects the visual mode.
+  const isTemporal = isChangeTask;
+
+  const [showRaster, setShowRaster] =
     useState(true);
 
   const [isDrawing, setIsDrawing] =
@@ -357,50 +462,36 @@ function AnalysisWorkspace({
   const [drawnAoi, setDrawnAoi] =
     useState<AoiGeoJson | null>(null);
 
-  const [overlayErrorUrl, setOverlayErrorUrl] =
-    useState<string | null>(null);
+  const [overlayError, setOverlayError] =
+    useState(false);
+
+  const [imageryType, setImageryType] =
+    useState<"true_color" | "false_color">("true_color");
+
+  const [imageryRef, setImageryRef] =
+    useState<"after" | "before">("after");
 
   useEffect(() => {
-    setOverlayErrorUrl(null);
+    setOverlayError(false);
+    setDrawnAoi(null);
+    setShowRaster(true);
+    setImageryType("true_color");
+    setImageryRef("after");
   }, [result]);
-
-  const handleAoiDrawn = (
-    aoi: AoiGeoJson
-  ) => {
-    setDrawnAoi(aoi);
-    setIsDrawing(false);
-
-    if (onRequery) {
-      const activeQuery =
-        currentQuery ||
-        (plan.metric === "NDBI"
-          ? "compare urban change between 2021 and 2025"
-          : plan.metric === "NDWI"
-            ? "compare water change between 2021 and 2025"
-            : "compare vegetation change between 2021 and 2025");
-
-      onRequery(
-        activeQuery,
-        aoi
-      );
-    }
-  };
 
   /* ============================================================
      BASIC HELPERS
      ============================================================ */
 
   const formatDate = (
-    date: string | undefined | null
+    value: unknown
   ) => {
-    if (!date) {
-      return "—";
-    }
+    if (!value) return "—";
 
-    const parsed = new Date(date);
+    const parsed = new Date(String(value));
 
     if (Number.isNaN(parsed.getTime())) {
-      return date;
+      return String(value);
     }
 
     return parsed
@@ -408,181 +499,367 @@ function AnalysisWorkspace({
       .split("T")[0];
   };
 
-  const confidence =
-    result.confidence != null
-      ? `${Math.round(
-          result.confidence * 100
-        )}%`
-      : "—";
+  const formatNumber = (
+    value: unknown,
+    digits = 4
+  ) => {
+    if (value == null || value === "") {
+      return "—";
+    }
+
+    const number = Number(value);
+
+    if (!Number.isFinite(number)) {
+      return "—";
+    }
+
+    return number.toFixed(digits);
+  };
+
+  const formatSigned = (
+    value: unknown,
+    digits = 4
+  ) => {
+    if (value == null || value === "") {
+      return "—";
+    }
+
+    const number = Number(value);
+
+    if (!Number.isFinite(number)) {
+      return "—";
+    }
+
+    return `${number >= 0 ? "+" : ""}${number.toFixed(
+      digits
+    )}`;
+  };
 
   /* ============================================================
-     BACKEND STATISTICS
+     METRIC / STATISTICS
      ============================================================ */
 
-  const statistics =
-    result.statistics ?? {};
+  const rawMetric =
+    statistics.metric ??
+    plan.metric ??
+    null;
+
+  const metric = rawMetric
+    ? String(rawMetric).toUpperCase()
+    : isTemporal
+      ? "NDVI"
+      : "";
 
   const meanBefore =
     statistics.mean_before != null
-      ? Number(
-          statistics.mean_before
-        )
+      ? Number(statistics.mean_before)
       : null;
 
   const meanAfter =
     statistics.mean_after != null
-      ? Number(
-          statistics.mean_after
-        )
+      ? Number(statistics.mean_after)
       : null;
 
   const meanChange =
     statistics.mean_change != null
-      ? Number(
-          statistics.mean_change
-        )
-      : null;
+      ? Number(statistics.mean_change)
+      : meanBefore != null &&
+          meanAfter != null
+        ? meanAfter - meanBefore
+        : null;
 
   const changedPixels =
-    statistics.changed_pixels != null
-      ? Number(
-          statistics.changed_pixels
-        )
-      : 0;
+    Number(statistics.changed_pixels) || 0;
 
   const validPixels =
-    statistics.valid_pixels != null
-      ? Number(
-          statistics.valid_pixels
-        )
-      : 0;
+    Number(statistics.valid_pixels) || 0;
 
   const increasedPixels =
-    statistics.increased_pixels != null
-      ? Number(
-          statistics.increased_pixels
-        )
-      : 0;
+    Number(statistics.increased_pixels) || 0;
 
   const decreasedPixels =
-    statistics.decreased_pixels != null
-      ? Number(
-          statistics.decreased_pixels
-        )
-      : 0;
+    Number(statistics.decreased_pixels) || 0;
 
   const changeRatio =
     statistics.change_ratio != null
-      ? Number(
-          statistics.change_ratio
-        )
-      : 0;
-
-  const changeType = String(
-    statistics.change_type ??
-      "unknown"
-  );
-
-  const metric = String(
-    statistics.metric ??
-      plan.metric ??
-      plan.analysis?.[0] ??
-      "NDVI"
-  ).toUpperCase();
+      ? Number(statistics.change_ratio)
+      : validPixels > 0
+        ? changedPixels / validPixels
+        : 0;
 
   /* ============================================================
-     BACKEND CHANGE VISUALIZATION
+     EVIDENCE / DATES
      ============================================================ */
 
-  const visualizationLayer =
-    Array.isArray(result?.layers)
-      ? result.layers.find(
-          (layer: any) =>
-            layer?.visualization_url || layer?.classified_visualization_url
-        )
-      : null;
+  const evidence = Array.isArray(
+    (result as any).evidence
+  )
+    ? (result as any).evidence
+    : [];
 
-  const isIndexMap =
-    (visualizationLayer as any)?.type === "index_map" ||
-    plan.task.endsWith("_index");
+  const firstEvidence =
+    evidence[0] ?? {};
+
+  const evidenceImages =
+    Array.isArray(firstEvidence.images)
+      ? firstEvidence.images
+      : [];
+
+  const beforeDate = formatDate(
+    evidenceImages[0]?.date ??
+      plan.time_start
+  );
+
+  const afterDate = formatDate(
+    evidenceImages[1]?.date ??
+      plan.time_end
+  );
+
+  const cloudValues =
+    evidenceImages
+      .map((image: any) =>
+        Number(image?.cloud_cover)
+      )
+      .filter((value: number) =>
+        Number.isFinite(value)
+      );
+
+  const cloudCover =
+    cloudValues.length > 0
+      ? `${(
+          cloudValues.reduce(
+            (sum: number, value: number) =>
+              sum + value,
+            0
+          ) / cloudValues.length
+        ).toFixed(1)}%`
+      : "Unavailable";
+
+  /* ============================================================
+     VISUALIZATION
+     ============================================================ */
+
+  const allLayers: any[] = useMemo(() => {
+    return Array.isArray((result as any).layers) ? (result as any).layers : [];
+  }, [result]);
+
+  const visualizationLayer = useMemo(() => {
+    if (isImageSearch) {
+      const preferredId = `${imageryType}_${imageryRef}`;
+      const altId = `${imageryType}_${imageryRef === "after" ? "before" : "after"}`;
+
+      const layer =
+        allLayers.find(
+          (l: any) =>
+            l?.id === preferredId &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.id === altId &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.id?.startsWith(imageryType) &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.id?.startsWith("true_color") &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.id?.startsWith("false_color") &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.visualization_url || l?.classified_visualization_url
+        );
+
+      return layer ?? null;
+    }
+
+    if (isIndexMap) {
+      const targetMetric = (rawMetric || "").toLowerCase();
+      const layer =
+        allLayers.find(
+          (l: any) =>
+            (l?.id?.includes(targetMetric) || l?.id?.startsWith("index_")) &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.id?.startsWith("index_") &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.visualization_url || l?.classified_visualization_url
+        );
+      return layer ?? null;
+    }
+
+    if (isChangeTask) {
+      const layer =
+        allLayers.find(
+          (l: any) =>
+            l?.id === "change_continuous" &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.id?.startsWith("change_") &&
+            (l?.visualization_url || l?.classified_visualization_url)
+        ) ||
+        allLayers.find(
+          (l: any) =>
+            l?.visualization_url || l?.classified_visualization_url
+        );
+      return layer ?? null;
+    }
+
+    return (
+      allLayers.find(
+        (l: any) =>
+          l?.visualization_url || l?.classified_visualization_url
+      ) ?? null
+    );
+  }, [
+    isImageSearch,
+    isIndexMap,
+    isChangeTask,
+    imageryType,
+    imageryRef,
+    allLayers,
+    rawMetric,
+  ]);
 
   const rawVisualizationUrl =
-    (visualizationLayer as any)?.visualization_url ??
-    (visualizationLayer as any)?.classified_visualization_url ??
-    (result as any)?.visualization_url ??
-    (result as any)?.visualization?.url ??
-    (result as any)?.visualization?.relative_path ??
+    visualizationLayer?.visualization_url ??
+    visualizationLayer?.classified_visualization_url ??
+    (!isImageSearch
+      ? ((result as any).visualization_url ??
+        (result as any).visualization?.url ??
+        (result as any).visualization?.relative_path)
+      : null) ??
     null;
 
   const rawBounds =
-    (visualizationLayer as any)?.bounds ??
-    (result as any)?.bounds ??
-    (result as any)?.visualization?.bounds ??
+    visualizationLayer?.bounds ??
+    (result as any).bounds ??
+    (result as any).visualization?.bounds ??
     null;
 
-  const fullVisualizationUrl = useMemo(() => {
-    if (!rawVisualizationUrl) return null;
-    const cleanUrl = String(rawVisualizationUrl).trim();
-    if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-      return cleanUrl;
-    }
-    const baseUrl = (API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
-    const pathUrl = cleanUrl.startsWith("/") ? cleanUrl : `/${cleanUrl}`;
-    return `${baseUrl}${pathUrl}`;
-  }, [rawVisualizationUrl]);
-
-  const changeMapBounds: LeafletBounds | null = useMemo(() => {
-    if (!rawBounds) return null;
-
-    // Format 1: 2x2 nested array [[south, west], [north, east]]
-    if (
-      Array.isArray(rawBounds) &&
-      rawBounds.length === 2 &&
-      Array.isArray(rawBounds[0]) &&
-      Array.isArray(rawBounds[1]) &&
-      rawBounds[0].length >= 2 &&
-      rawBounds[1].length >= 2
-    ) {
-      const v00 = Number(rawBounds[0][0]);
-      const v01 = Number(rawBounds[0][1]);
-      const v10 = Number(rawBounds[1][0]);
-      const v11 = Number(rawBounds[1][1]);
-      if ([v00, v01, v10, v11].every(Number.isFinite)) {
-        return [[v00, v01], [v10, v11]];
+  const visualizationUrl =
+    useMemo(() => {
+      if (!rawVisualizationUrl) {
+        return null;
       }
-    }
 
-    // Format 2: Flat 4-element array [minLon, minLat, maxLon, maxLat] or [west, south, east, north]
-    if (Array.isArray(rawBounds) && rawBounds.length === 4) {
-      const v0 = Number(rawBounds[0]);
-      const v1 = Number(rawBounds[1]);
-      const v2 = Number(rawBounds[2]);
-      const v3 = Number(rawBounds[3]);
+      const value =
+        String(rawVisualizationUrl).trim();
 
-      if ([v0, v1, v2, v3].every(Number.isFinite)) {
-        // GeoJSON standard: [minLon, minLat, maxLon, maxLat]
-        if (Math.abs(v0) > Math.abs(v1) || (Math.abs(v0) > 40 && Math.abs(v1) < 40)) {
-          const minLon = Math.min(v0, v2);
-          const maxLon = Math.max(v0, v2);
-          const minLat = Math.min(v1, v3);
-          const maxLat = Math.max(v1, v3);
-          return [[minLat, minLon], [maxLat, maxLon]];
-        } else {
-          // [minLat, minLon, maxLat, maxLon]
-          const minLat = Math.min(v0, v2);
-          const maxLat = Math.max(v0, v2);
-          const minLon = Math.min(v1, v3);
-          const maxLon = Math.max(v1, v3);
-          return [[minLat, minLon], [maxLat, maxLon]];
-        }
+      if (
+        value.startsWith("http://") ||
+        value.startsWith("https://")
+      ) {
+        return value;
       }
-    }
 
-    return null;
-  }, [rawBounds]);
+      const base =
+        API_BASE_URL.replace(/\/+$/, "");
+
+      return `${base}${
+        value.startsWith("/")
+          ? value
+          : `/${value}`
+      }`;
+    }, [rawVisualizationUrl]);
 
   /* ============================================================
-     AOI HELPERS
+     BOUNDS
+     ============================================================ */
+
+  const visualizationBounds =
+    useMemo<LeafletBounds | null>(() => {
+      if (!rawBounds) {
+        return null;
+      }
+
+      if (
+        Array.isArray(rawBounds) &&
+        rawBounds.length === 2 &&
+        Array.isArray(rawBounds[0]) &&
+        Array.isArray(rawBounds[1])
+      ) {
+        const a = Number(
+          rawBounds[0][0]
+        );
+        const b = Number(
+          rawBounds[0][1]
+        );
+        const c = Number(
+          rawBounds[1][0]
+        );
+        const d = Number(
+          rawBounds[1][1]
+        );
+
+        if (
+          [a, b, c, d].every(
+            Number.isFinite
+          )
+        ) {
+          return [
+            [a, b],
+            [c, d],
+          ];
+        }
+      }
+
+      if (
+        Array.isArray(rawBounds) &&
+        rawBounds.length === 4
+      ) {
+        const v0 = Number(
+          rawBounds[0]
+        );
+        const v1 = Number(
+          rawBounds[1]
+        );
+        const v2 = Number(
+          rawBounds[2]
+        );
+        const v3 = Number(
+          rawBounds[3]
+        );
+
+        if (
+          [v0, v1, v2, v3].every(
+            Number.isFinite
+          )
+        ) {
+          return [
+            [
+              Math.min(v1, v3),
+              Math.min(v0, v2),
+            ],
+            [
+              Math.max(v1, v3),
+              Math.max(v0, v2),
+            ],
+          ];
+        }
+      }
+
+      return null;
+    }, [rawBounds]);
+
+  /* ============================================================
+     AOI NORMALIZATION
      ============================================================ */
 
   const normalizeCoordinates = (
@@ -592,23 +869,14 @@ function AnalysisWorkspace({
       return [];
     }
 
-    /*
-     * Direct Leaflet format:
-     *
-     * [
-     *   [lat, lng],
-     *   [lat, lng]
-     * ]
-     */
+    /* Leaflet: [[lat,lng], ...] */
 
     if (
       value.length > 0 &&
       Array.isArray(value[0]) &&
       value[0].length >= 2 &&
-      typeof value[0][0] ===
-        "number" &&
-      typeof value[0][1] ===
-        "number"
+      typeof value[0][0] === "number" &&
+      typeof value[0][1] === "number"
     ) {
       return value.map(
         (point: number[]) =>
@@ -619,16 +887,7 @@ function AnalysisWorkspace({
       );
     }
 
-    /*
-     * GeoJSON Polygon:
-     *
-     * [
-     *   [
-     *     [lng, lat],
-     *     [lng, lat]
-     *   ]
-     * ]
-     */
+    /* GeoJSON: [[[lng,lat], ...]] */
 
     if (
       value.length > 0 &&
@@ -637,78 +896,39 @@ function AnalysisWorkspace({
     ) {
       const ring = value[0];
 
-      if (
-        Array.isArray(ring) &&
-        ring.length > 0 &&
-        Array.isArray(ring[0])
-      ) {
-        return ring
-          .filter(
-            (point: any) =>
-              Array.isArray(point) &&
-              point.length >= 2 &&
-              typeof point[0] ===
-                "number" &&
-              typeof point[1] ===
-                "number"
-          )
-          .map(
-            (point: number[]) =>
-              [
-                Number(point[1]),
-                Number(point[0]),
-              ] as LatLng
-          );
-      }
+      return ring
+        .filter(
+          (point: any) =>
+            Array.isArray(point) &&
+            point.length >= 2
+        )
+        .map(
+          (point: number[]) =>
+            [
+              Number(point[1]),
+              Number(point[0]),
+            ] as LatLng
+        );
     }
 
     return [];
   };
 
-  /*
-   * IMPORTANT:
-   *
-   * If the backend doesn't send plan.aoi,
-   * look for a bbox directly inside the query.
-   *
-   * Example:
-   *
-   * [73.80, 18.50, 73.86, 18.56]
-   *
-   * = [west, south, east, north]
-   */
-
-  const extractBboxFromQuery = (
+  const extractBbox = (
     query?: string
   ): LatLng[] => {
-    if (!query) {
-      return [];
-    }
+    if (!query) return [];
 
-    const match =
-      query.match(
-        /\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]/
-      );
+    const match = query.match(
+      /\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]/
+    );
 
-    if (!match) {
-      return [];
-    }
+    if (!match) return [];
 
     const west = Number(match[1]);
     const south = Number(match[2]);
     const east = Number(match[3]);
     const north = Number(match[4]);
-
-    if (
-      ![
-        west,
-        south,
-        east,
-        north,
-      ].every(Number.isFinite)
-    ) {
-      return [];
-    }
 
     return [
       [south, west],
@@ -719,75 +939,46 @@ function AnalysisWorkspace({
     ];
   };
 
-  /*
-   * Try every possible AOI source.
-   *
-   * Priority:
-   *
-   * 1. User-drawn AOI
-   * 2. plan.aoi
-   * 3. result.aoi
-   * 4. query bbox
-   */
+  const aoiCoordinates =
+    useMemo<LatLng[]>(() => {
+      const candidates = [
+        drawnAoi,
+        plan?.aoi,
+        (result as any)?.aoi,
+        planAny?.geometry,
+        planAny?.aoi_geometry,
+      ];
 
-  const possibleAois = [
-    drawnAoi,
-    (plan as any)?.aoi,
-    (result as any)?.aoi,
-    (plan as any)?.geometry,
-    (plan as any)?.aoi_geometry,
-  ];
+      for (const candidate of candidates) {
+        if (!candidate) continue;
 
-  let aoiCoordinates: LatLng[] = [];
+        const coordinates =
+          normalizeCoordinates(
+            candidate?.coordinates ??
+              candidate
+          );
 
-  for (
-    const candidate of possibleAois
-  ) {
-    if (!candidate) {
-      continue;
-    }
+        if (coordinates.length >= 3) {
+          return coordinates;
+        }
+      }
 
-    const candidateCoordinates =
-      normalizeCoordinates(
-        candidate?.coordinates ??
-          candidate
-      );
-
-    if (
-      candidateCoordinates.length >= 3
-    ) {
-      aoiCoordinates =
-        candidateCoordinates;
-      break;
-    }
-  }
-
-  /*
-   * FINAL FALLBACK:
-   *
-   * Extract AOI directly from the user's
-   * query text.
-   */
-
-  if (
-    aoiCoordinates.length < 3
-  ) {
-    aoiCoordinates =
-      extractBboxFromQuery(
+      return extractBbox(
         currentQuery ||
-          (plan as any)?.task ||
+          plan?.task ||
           ""
       );
-  }
+    }, [
+      drawnAoi,
+      plan,
+      result,
+      currentQuery,
+    ]);
 
   const hasAoi =
     aoiCoordinates.length >= 3;
 
-  /* ============================================================
-     AOI BOUNDS
-     ============================================================ */
-
-  const aoiBounds: LeafletBounds | null =
+  const aoiBounds =
     hasAoi
       ? ([
           [
@@ -796,21 +987,18 @@ function AnalysisWorkspace({
                 (point) => point[0]
               )
             ),
-
             Math.min(
               ...aoiCoordinates.map(
                 (point) => point[1]
               )
             ),
           ],
-
           [
             Math.max(
               ...aoiCoordinates.map(
                 (point) => point[0]
               )
             ),
-
             Math.max(
               ...aoiCoordinates.map(
                 (point) => point[1]
@@ -820,187 +1008,187 @@ function AnalysisWorkspace({
         ] as LeafletBounds)
       : null;
 
-  /* ============================================================
-     MAP CENTER
-     ============================================================ */
-
   const fallbackCenter: LatLng = [
     19.076,
     72.8777,
   ];
 
   const mapCenter: LatLng =
-    hasAoi && aoiCoordinates.length
+    aoiBounds
       ? [
-          aoiCoordinates.reduce(
-            (sum, point) =>
-              sum + point[0],
-            0
-          ) /
-            aoiCoordinates.length,
-
-          aoiCoordinates.reduce(
-            (sum, point) =>
-              sum + point[1],
-            0
-          ) /
-            aoiCoordinates.length,
+          (aoiBounds[0][0] +
+            aoiBounds[1][0]) /
+            2,
+          (aoiBounds[0][1] +
+            aoiBounds[1][1]) /
+            2,
         ]
-      : changeMapBounds
+      : visualizationBounds
         ? [
-            (
-              changeMapBounds[0][0] +
-              changeMapBounds[1][0]
-            ) / 2,
-
-            (
-              changeMapBounds[0][1] +
-              changeMapBounds[1][1]
-            ) / 2,
+            (visualizationBounds[0][0] +
+              visualizationBounds[1][0]) /
+              2,
+            (visualizationBounds[0][1] +
+              visualizationBounds[1][1]) /
+              2,
           ]
         : fallbackCenter;
 
-  /*
-   * AOI gets priority over raster bounds.
-   *
-   * THIS IS THE IMPORTANT CHANGE.
-   */
-
   const viewportBounds =
     aoiBounds ??
-    changeMapBounds;
-
-  const overlayBounds: LeafletBounds | null = useMemo(() => {
-    if (hasAoi && aoiBounds) {
-      if (changeMapBounds) {
-        const latDiff = Math.abs(changeMapBounds[0][0] - aoiBounds[0][0]);
-        const lonDiff = Math.abs(changeMapBounds[0][1] - aoiBounds[0][1]);
-        if (latDiff < 1.0 && lonDiff < 1.0) {
-          return changeMapBounds;
-        }
-      }
-      return aoiBounds;
-    }
-    return changeMapBounds ?? aoiBounds;
-  }, [hasAoi, aoiBounds, changeMapBounds]);
+    visualizationBounds;
 
   /* ============================================================
-     DISPLAY HELPERS
+     QUERY / PLAN
      ============================================================ */
 
-  const formatNumber = (
-    value: number | null,
-    digits = 4
+  /* ============================================================
+     AOI REQUERY
+     ============================================================ */
+
+  const handleAoiDrawn = (
+    aoi: AoiGeoJson
   ) => {
-    if (
-      value == null ||
-      Number.isNaN(value)
-    ) {
-      return "—";
+    setDrawnAoi(aoi);
+    setIsDrawing(false);
+
+    if (!onRequery) {
+      return;
     }
 
-    return value.toFixed(digits);
+    const query =
+      currentQuery ||
+      (metric === "NDBI"
+        ? "compare urban change between 2021 and 2025"
+        : metric === "NDWI"
+          ? "compare water change between 2021 and 2025"
+          : "compare vegetation change between 2021 and 2025");
+
+    onRequery(
+      query,
+      aoi
+    );
   };
+
+  /* ============================================================
+     FINDINGS DISPLAY DATA
+     ============================================================ */
+
+  const realDateBefore = beforeDate;
+  const realDateAfter = afterDate;
+  const cloudCoverText = cloudCover;
 
   const formatSignedNumber = (
-    value: number | null,
+    value: unknown,
     digits = 4
-  ) => {
-    if (
-      value == null ||
-      Number.isNaN(value)
-    ) {
-      return "—";
-    }
+  ) => formatSigned(value, digits);
 
-    return `${
-      value >= 0 ? "+" : ""
-    }${value.toFixed(digits)}`;
-  };
-
-  const formatPercentage = (
-    value: number | null
-  ) => {
-    if (
-      value == null ||
-      Number.isNaN(value)
-    ) {
-      return "—";
-    }
-
-    return `${(
-      value * 100
-    ).toFixed(2)}%`;
-  };
-
-  const readableChangeType =
-    changeType === "no_change"
-      ? "No significant change"
-      : changeType.charAt(0).toUpperCase() +
-        changeType.slice(1);
-
-  const dateStart = formatDate(
-    plan.time_start
-  );
-
-  const dateEnd = formatDate(
-    plan.time_end
-  );
-
-  const evidenceList =
-    Array.isArray(result.evidence)
-      ? result.evidence
-      : [];
-
-  const firstEvidence =
-    (evidenceList[0] || {}) as any;
-
-  const evidenceImages =
-    Array.isArray(
-      firstEvidence?.images
-    )
-      ? firstEvidence.images
-      : [];
-
-  const realDateBefore =
-    evidenceImages[0]?.date
-      ? formatDate(
-          evidenceImages[0].date
+  const changeCoverage =
+  validPixels > 0
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          (changedPixels / validPixels) * 100
         )
-      : dateStart;
-
-  const realDateAfter =
-    evidenceImages[1]?.date
-      ? formatDate(
-          evidenceImages[1].date
-        )
-      : dateEnd;
-
-  const cloudCovers =
-    evidenceImages
-      .map(
-        (img: any) =>
-          img?.cloud_cover
       )
-      .filter(
-        (v: any) =>
-          typeof v === "number" &&
-          !Number.isNaN(v)
-      );
+    : changeRatio > 0
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            changeRatio * 100
+          )
+        )
+      : 0;
 
-  const cloudCoverText =
-    cloudCovers.length > 0
-      ? `${(
-          cloudCovers.reduce(
-            (
-              a: number,
-              b: number
-            ) => a + b,
-            0
-          ) /
-          cloudCovers.length
-        ).toFixed(2)}%`
-      : "Cloud cover data unavailable";
+const decreaseShare =
+  validPixels > 0
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          (decreasedPixels / validPixels) * 100
+        )
+      )
+    : 0;
+
+const increaseShare =
+  validPixels > 0
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          (increasedPixels / validPixels) * 100
+        )
+      )
+    : 0;
+
+const unchangedShare =
+  Math.max(
+    0,
+    100 -
+      decreaseShare -
+      increaseShare
+  );
+
+const beforeAfterValue =
+  meanBefore != null &&
+  meanAfter != null
+    ? `${formatSignedNumber(meanBefore)} → ${formatSignedNumber(meanAfter)}`
+    : "—";
+
+const primaryIndicator =
+  plan?.primary_indicators?.[0] ??
+  (isIndexMap ? metric : `${metric} Difference`);
+
+const supportingIndicator =
+  plan?.supporting_indicators?.[0] ??
+  (isIndexMap ? "Single index" : "Change detection");
+
+const rawAnswer =
+  typeof result.answer === "string" && result.answer.trim()
+    ? result.answer.trim()
+    : null;
+
+const interpretationText =
+  typeof (statistics as any)?.interpretation?.summary === "string"
+    ? (statistics as any).interpretation.summary
+    : typeof (statistics as any)?.explanation === "string"
+      ? (statistics as any).explanation
+      : rawAnswer || "Not available for this analysis.";
+
+const vqaAnswer = rawAnswer ?? "Not available for this analysis.";
+const captionAnswer = rawAnswer ?? "Not available for this analysis.";
+const opticalSarAnswer = rawAnswer ?? "Not available for this analysis.";
+
+const confidencePercent =
+  result.confidence !== null && result.confidence !== undefined && Number.isFinite(Number(result.confidence))
+    ? Math.round(Number(result.confidence) * 100)
+    : null;
+
+const executionTrace = Array.isArray(result.execution_trace)
+  ? result.execution_trace
+  : [];
+
+const modelInfo =
+  result.model?.name ||
+  (result as any).interpretation?.model ||
+  (isVqa || isCaption || isOpticalSar ? "Remote Sensing VLM" : null);
+
+const analysisStatus = result.status || "COMPLETE";
+
+const vqaSource =
+  firstEvidence?.source === "REAL_SENTINEL_2"
+    ? "Sentinel-2 (L2A)"
+    : plan?.modalities?.length
+      ? plan.modalities.join(", ")
+      : "Satellite imagery";
+
+const opticalSarModalities =
+  Array.isArray(plan?.modalities) && plan.modalities.length
+    ? plan.modalities.join(" + ")
+    : "Optical + SAR";
 
   /* ============================================================
      RENDER
@@ -1008,15 +1196,12 @@ function AnalysisWorkspace({
 
   return (
     <main className="analysis-workspace">
-
       {/* ======================================================
           HEADER
           ====================================================== */}
 
       <header className="analysis-header">
-
         <div className="analysis-brand">
-
           <div className="analysis-brand-name">
             SATQUERY AI
           </div>
@@ -1024,261 +1209,269 @@ function AnalysisWorkspace({
           <div className="analysis-brand-subtitle">
             REMOTE SENSING INTELLIGENCE
           </div>
-
         </div>
 
-        <div className="analysis-context">
-
-          <div className="analysis-context-item">
-
-            <span className="analysis-context-label">
-              AOI
+        <div className="analysis-header-center">
+          <div className="header-context">
+            <span className="header-context-label">
+              INVESTIGATION
             </span>
 
-            <span className="analysis-context-value">
-              {plan.target ||
-                "IDENTIFYING"}
+            <span className="header-context-value">
+              {plan?.target ||
+                "REMOTE SENSING ANALYSIS"}
             </span>
-
-            <span className="analysis-context-arrow">
-              ↓
-            </span>
-
           </div>
 
-          <div className="analysis-context-item">
+          <div className="header-divider" />
 
-            <span className="analysis-context-label">
-              DATE RANGE
+          <div className="header-context">
+            <span className="header-context-label">
+              {isVqa || isOpticalSar || isCaption || isImageSearch || isIndexMap ? "ANALYSIS TYPE" : "TEMPORAL WINDOW"}
             </span>
 
-            <span className="analysis-context-value">
-              {isIndexMap ? (
-                realDateAfter
-              ) : (
-                <>
-                  {realDateBefore}
-                  <span className="date-arrow">
-                    →
-                  </span>
-                  {realDateAfter}
-                </>
-              )}
+            <span className="header-context-value">
+              {isVqa
+                ? "VISUAL QUESTION ANSWERING"
+                : isCaption
+                  ? "IMAGE CAPTIONING"
+                  : isOpticalSar
+                    ? "OPTICAL + SAR ANALYSIS"
+                    : isImageSearch
+                      ? "SATELLITE IMAGERY SEARCH"
+                      : isIndexMap
+                        ? `${metric || "SPECTRAL"} INDEX ANALYSIS`
+                        : (
+                          <>
+                            {beforeDate}
+                            <span className="header-arrow">
+                              →
+                            </span>
+                            {afterDate}
+                          </>
+                        )}
             </span>
-
           </div>
-
         </div>
 
         <div className="analysis-header-actions">
+          <div className="analysis-complete">
+            <span className="complete-dot" />
+            {analysisStatus.toUpperCase()}
+          </div>
 
           <button
             type="button"
-            className="analysis-export"
-            onClick={() => {
-              window.print();
-            }}
+            className="export-button"
+            onClick={() =>
+              window.print()
+            }
           >
             EXPORT
           </button>
-
-          <button type="button" className="analysis-menu" aria-label="Open Menu">
-            ☰
-          </button>
-
         </div>
-
       </header>
 
       {/* ======================================================
-          WORKSPACE
+          MAIN LAYOUT
           ====================================================== */}
 
       <section className="analysis-layout">
-
         {/* ====================================================
-            LEFT SIDEBAR
+            LEFT RAIL
             ==================================================== */}
-
+        
         <aside className="analysis-sidebar">
 
-          {/* QUERY */}
+  {/* ======================================================
+      QUERY
+      ====================================================== */}
 
-          <section className="analysis-section analysis-query-section">
+  <section className="analysis-section analysis-query-section">
 
-            <div className="analysis-section-label">
-              QUERY
-            </div>
+    <div className="analysis-section-label">
+      QUERY
+    </div>
 
-            <p className="analysis-query">
-              {currentQuery ||
-                plan.task ||
-                "Analysis request"}
-            </p>
+    <p className="analysis-query">
+      {currentQuery ||
+        plan.task ||
+        "Analysis request"}
+    </p>
 
-            {drawnAoi && (
-              <div className="aoi-draw-status">
+    {drawnAoi && (
+      <div className="aoi-draw-status">
 
-                <span className="aoi-status-tag">
-                  ✓ CUSTOM AOI DRAWN
-                </span>
+        <span className="aoi-status-tag">
+          ✓ CUSTOM AOI DRAWN
+        </span>
 
-                <button
-                  type="button"
-                  className="aoi-clear-btn"
-                  onClick={() => {
-                    setDrawnAoi(null);
+        <button
+          type="button"
+          className="aoi-clear-btn"
+          onClick={() => {
+            setDrawnAoi(null);
 
-                    if (onRequery) {
-                      const activeQuery =
-                        currentQuery ||
-                        (plan.metric === "NDBI"
-                          ? "compare urban change between 2021 and 2025"
-                          : plan.metric === "NDWI"
-                            ? "compare water change between 2021 and 2025"
-                            : "compare vegetation change between 2021 and 2025");
+            if (onRequery) {
+              const activeQuery =
+                currentQuery ||
+                (
+                  plan.metric === "NDBI"
+                    ? "compare urban change between 2021 and 2025"
+                    : plan.metric === "NDWI"
+                      ? "compare water change between 2021 and 2025"
+                      : "compare vegetation change between 2021 and 2025"
+                );
 
-                      onRequery(
-                        activeQuery
-                      );
-                    }
-                  }}
-                >
-                  RESET AOI
-                </button>
+              onRequery(activeQuery);
+            }
+          }}
+        >
+          RESET AOI
+        </button>
 
-              </div>
-            )}
+      </div>
+    )}
 
-          </section>
+  </section>
 
-          {/* DATA SUMMARY */}
 
-          <section className="analysis-section analysis-data">
+  {/* ======================================================
+      DATA SUMMARY
+      ====================================================== */}
 
-            <div className="analysis-section-label">
-              DATA SUMMARY
-            </div>
+  <section className="analysis-section analysis-data">
 
-            <div className="analysis-data-row">
+    <div className="analysis-section-label">
+      DATA SUMMARY
+    </div>
 
-              <span className="analysis-data-label">
-                SATELLITE
+
+    <div className="analysis-data-row">
+
+      <span className="analysis-data-label">
+        SATELLITE
+      </span>
+
+      <span className="analysis-data-value">
+        {firstEvidence?.source === "REAL_SENTINEL_2"
+          ? "Sentinel-2 (L2A)"
+          : plan.modalities?.length
+            ? plan.modalities.join(", ")
+            : "Sentinel-2"}
+      </span>
+
+    </div>
+
+
+    <div className="analysis-data-row">
+
+      <span className="analysis-data-label">
+        RESOLUTION
+      </span>
+
+      <span className="analysis-data-value">
+        10m
+      </span>
+
+    </div>
+
+
+    <div className="analysis-data-row">
+
+      <span className="analysis-data-label">
+        {isVqa || isOpticalSar || isCaption || isImageSearch ? "ACQUISITION" : "ACQUISITION DATES"}
+      </span>
+
+      <span className="analysis-data-value">
+
+        {isVqa || isOpticalSar || isCaption || isImageSearch ? (
+          realDateAfter !== "—"
+            ? realDateAfter
+            : realDateBefore
+        ) : isIndexMap ? (
+          realDateAfter
+        ) : (
+          <>
+            {realDateBefore}
+            {" → "}
+            {realDateAfter}
+          </>
+        )}
+
+      </span>
+
+    </div>
+
+
+    <div className="analysis-data-row">
+
+      <span className="analysis-data-label">
+        CLOUD COVER
+      </span>
+
+      <span className="analysis-data-value">
+        {cloudCoverText}
+      </span>
+
+    </div>
+
+  </section>
+
+
+  {/* ======================================================
+      MODEL & EXECUTION TRACE
+      ====================================================== */}
+
+  {(modelInfo || executionTrace.length > 0) && (
+    <section className="analysis-section">
+
+      <div className="analysis-section-label">
+        EXECUTION TRACE
+      </div>
+
+      {modelInfo && (
+        <div className="analysis-data-row" style={{ marginBottom: 8 }}>
+          <span className="analysis-data-label">
+            MODEL
+          </span>
+          <span className="analysis-data-value">
+            {modelInfo}
+          </span>
+        </div>
+      )}
+
+      {executionTrace.length > 0 ? (
+        <ul className="execution-trace-list">
+          {executionTrace.map((step: string, index: number) => (
+            <li key={`trace-${index}`} className="execution-trace-item">
+              <span className="execution-step-num">
+                {String(index + 1).padStart(2, "0")}
               </span>
-
-              <span className="analysis-data-value">
-                {firstEvidence?.source ===
-                "REAL_SENTINEL_2"
-                  ? "Sentinel-2 (L2A)"
-                  : plan.modalities?.length
-                    ? plan.modalities.join(
-                        ", "
-                      )
-                    : "Sentinel-2"}
+              <span>
+                {step}
               </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="analysis-data-value">
+          Not available for this analysis.
+        </div>
+      )}
 
-            </div>
+    </section>
+  )}
 
-            <div className="analysis-data-row">
-
-              <span className="analysis-data-label">
-                RESOLUTION
-              </span>
-
-              <span className="analysis-data-value">
-                10m
-              </span>
-
-            </div>
-
-            <div className="analysis-data-row">
-
-              <span className="analysis-data-label">
-                ACQUISITION DATES
-              </span>
-
-              <span className="analysis-data-value">
-                {isIndexMap ? (
-                  realDateAfter
-                ) : (
-                  <>
-                    {realDateBefore}
-                    {" → "}
-                    {realDateAfter}
-                  </>
-                )}
-              </span>
-
-            </div>
-
-            <div className="analysis-data-row">
-
-              <span className="analysis-data-label">
-                CLOUD COVER
-              </span>
-
-              <span className="analysis-data-value">
-                {cloudCoverText}
-              </span>
-
-            </div>
-
-          </section>
-
-          {/* INDICATORS */}
-
-          <section className="analysis-section analysis-indicators">
-
-            <div className="analysis-section-label">
-              PRIMARY INDICATOR
-            </div>
-
-            <div className="finding-analysis large">
-              {metric}
-            </div>
-
-            {isIndexMap ? (
-              <>
-                <div className="analysis-section-label indicator-secondary-label">
-                  ANALYSIS TYPE
-                </div>
-
-                <div className="finding-analysis large">
-                  SINGLE INDEX
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="analysis-section-label indicator-secondary-label">
-                  SUPPORTING INDICATOR
-                </div>
-
-                <div className="finding-analysis large">
-                  CHANGE DETECTION
-                </div>
-
-                <div className="analysis-section-label indicator-secondary-label">
-                  CHANGE TYPE
-                </div>
-
-                <div className="finding-analysis large">
-                  {readableChangeType}
-                </div>
-              </>
-            )}
-
-          </section>
-
-        </aside>
+</aside>
+        
 
         {/* ====================================================
-            CENTER — SATELLITE MAP
+            MAP
             ==================================================== */}
 
         <section className="analysis-map-panel">
-
           <div className="analysis-map">
-
             <MapContainer
               center={mapCenter}
               zoom={
@@ -1287,24 +1480,20 @@ function AnalysisWorkspace({
                   : 10
               }
               zoomControl={false}
-              attributionControl={true}
+              attributionControl
               className="satellite-map"
             >
-
-              {/* SATELLITE BASEMAP */}
-
               <TileLayer
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                 attribution="Tiles © Esri"
               />
 
-              {/* MAP CONTROL BRIDGE */}
-
               <MapControlBridge />
 
-              {/* =================================================
-                  AOI — THIS NOW CONTROLS THE MAP POSITION
-                  ================================================= */}
+              <MapViewportController
+                bounds={viewportBounds}
+                center={mapCenter}
+              />
 
               {hasAoi && (
                 <Polygon
@@ -1312,16 +1501,14 @@ function AnalysisWorkspace({
                     aoiCoordinates
                   }
                   pathOptions={{
-                    color: "#f5f1e9",
+                    color: "#f7f1e6",
                     weight: 2,
                     fillColor:
-                      "#f5f1e9",
-                    fillOpacity: 0.03,
+                      "#f7f1e6",
+                    fillOpacity: 0.035,
                   }}
                 />
               )}
-
-              {/* AOI DRAW HANDLER */}
 
               <AoiDrawHandler
                 isDrawing={isDrawing}
@@ -1333,104 +1520,135 @@ function AnalysisWorkspace({
                 }
               />
 
-              {/* =================================================
-                  IMPORTANT:
-                  FIT MAP TO AOI FIRST.
-                  FALL BACK TO RASTER BOUNDS.
-                  ================================================= */}
-
-              <MapViewportController
-                bounds={
-                  viewportBounds
-                }
-                center={mapCenter}
-              />
-
-              {/* =================================================
-                  REAL GEOREFERENCED CHANGE RASTER
-                  ================================================= */}
-
-              {showChangeLayer &&
-                fullVisualizationUrl &&
-                overlayBounds &&
-                overlayErrorUrl !== fullVisualizationUrl && (
+              {showRaster &&
+                visualizationUrl &&
+                (visualizationBounds ?? aoiBounds) &&
+                !overlayError && (
                   <ImageOverlay
-                    key={fullVisualizationUrl}
-                    url={fullVisualizationUrl}
-                    bounds={overlayBounds}
-                    opacity={0.8}
+                    key={
+                      visualizationUrl
+                    }
+                    url={
+                      visualizationUrl
+                    }
+                    bounds={
+                      (visualizationBounds ??
+                        aoiBounds)!
+                    }
+                    opacity={
+                      isImageSearch
+                        ? 1.0
+                        : 0.80
+                    }
                     zIndex={1000}
                     eventHandlers={{
                       load: () => {
-                        console.log("CHANGE RASTER LOADED SUCCESS:", fullVisualizationUrl);
-                        console.log("BOUNDS:", overlayBounds);
+                        setOverlayError(
+                          false
+                        );
                       },
-                      error: (e) => {
-                        console.warn("CHANGE RASTER FAILED TO LOAD:", fullVisualizationUrl, e);
-                        setOverlayErrorUrl(fullVisualizationUrl);
+                      error: () => {
+                        console.warn(
+                          "SatQuery raster failed:",
+                          visualizationUrl
+                        );
+
+                        setOverlayError(
+                          true
+                        );
                       },
                     }}
                   />
                 )}
-
             </MapContainer>
 
-            {/* DRAWING STATUS */}
+            {/* MAP TOP LABEL */}
 
-            {isDrawing && (
-              <div className="map-drawing-badge">
-                <span>
-                  ▱ CLICK 2 POINTS (OR SHIFT+DRAG) TO SELECT AOI • DRAG MAP TO PAN (ESC TO CANCEL)
-                </span>
-              </div>
-            )}
-
-            {/* LOADING */}
-
-            {loading && (
-              <div className="analysis-loading-overlay">
-                <span>
-                  RETRIEVING REAL
-                  SENTINEL-2 IMAGERY
-                  &amp; ANALYZING...
-                </span>
-              </div>
-            )}
-
-            {/* MAP BADGE */}
-
-            <div className="map-analysis-badge">
-
-              <span>
-                {metric} {isIndexMap ? "INDEX" : "CHANGE"}
+            <div className="map-title">
+              <span className="map-title-mode">
+                {isVqa || isCaption
+                  ? "MULTIMODAL"
+                  : isOpticalSar
+                    ? "OPTICAL + SAR"
+                    : isImageSearch
+                      ? imageryType === "false_color"
+                        ? "FALSE COLOR (NIR)"
+                        : "TRUE COLOR (RGB)"
+                      : `${metric || "INDEX"} ${String(
+                          plan?.task ?? ""
+                        ).includes("index")
+                          ? "INDEX"
+                          : "CHANGE"}`}
               </span>
 
-              <span>
-                {isIndexMap ? (
-                  realDateAfter
-                ) : (
-                  <>
-                    {realDateBefore} → {realDateAfter}
-                  </>
-                )}
+              <span className="map-title-date">
+                {isVqa || isCaption
+                  ? vqaSource
+                  : isOpticalSar
+                    ? opticalSarModalities
+                    : isImageSearch
+                      ? imageryRef === "before"
+                        ? beforeDate
+                        : afterDate !== "—"
+                          ? afterDate
+                          : beforeDate
+                      : <>
+                          {beforeDate}
+                          <b>→</b>
+                          {afterDate}
+                        </>}
               </span>
-
             </div>
 
             {/* MAP CONTROLS */}
 
             <div className="map-controls">
-
+              {isImageSearch && (
+                <div style={{ display: "flex", gap: "4px", marginRight: "8px" }}>
+                  <button
+                    type="button"
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: imageryType === "true_color" ? "rgba(56, 189, 248, 0.25)" : "transparent",
+                      color: imageryType === "true_color" ? "#38bdf8" : "#94a3b8",
+                      border: "1px solid var(--soft-line)",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setImageryType("true_color")}
+                  >
+                    RGB
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: imageryType === "false_color" ? "rgba(56, 189, 248, 0.25)" : "transparent",
+                      color: imageryType === "false_color" ? "#38bdf8" : "#94a3b8",
+                      border: "1px solid var(--soft-line)",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setImageryType("false_color")}
+                  >
+                    NIR
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 aria-label="Zoom in"
-                onClick={() => {
+                onClick={() =>
                   window.dispatchEvent(
                     new CustomEvent(
                       "satquery-map-zoom-in"
                     )
-                  );
-                }}
+                  )
+                }
               >
                 +
               </button>
@@ -1438,13 +1656,13 @@ function AnalysisWorkspace({
               <button
                 type="button"
                 aria-label="Zoom out"
-                onClick={() => {
+                onClick={() =>
                   window.dispatchEvent(
                     new CustomEvent(
                       "satquery-map-zoom-out"
                     )
-                  );
-                }}
+                  )
+                }
               >
                 −
               </button>
@@ -1452,435 +1670,785 @@ function AnalysisWorkspace({
               <button
                 type="button"
                 aria-label="Locate analysis"
-                onClick={() => {
+                onClick={() =>
                   window.dispatchEvent(
                     new CustomEvent(
                       "satquery-map-locate"
                     )
-                  );
-                }}
+                  )
+                }
               >
                 ⌖
               </button>
 
               <button
                 type="button"
-                aria-label="Toggle change layer"
-                aria-pressed={
-                  showChangeLayer
+                className={
+                  showRaster
+                    ? "active"
+                    : ""
                 }
-                title={
-                  showChangeLayer
-                    ? "Hide change layer"
-                    : "Show change layer"
+                aria-label="Toggle raster"
+                onClick={() =>
+                  setShowRaster(
+                    (value) =>
+                      !value
+                  )
                 }
-                onClick={() => {
-                  setShowChangeLayer(
-                    (visible) =>
-                      !visible
-                  );
-                }}
               >
-                ⌁
+                ◫
               </button>
 
               <button
                 type="button"
-                aria-label={
-                  isDrawing
-                    ? "Cancel AOI drawing"
-                    : "Draw AOI rectangle"
-                }
-                title={
-                  isDrawing
-                    ? "Click to cancel drawing"
-                    : "Click to draw AOI rectangle on map"
-                }
                 className={
                   isDrawing
-                    ? "active-draw-control"
+                    ? "active"
                     : ""
                 }
-                aria-pressed={
-                  isDrawing
-                }
-                onClick={() => {
+                aria-label="Draw AOI"
+                onClick={() =>
                   setIsDrawing(
-                    (drawing) =>
-                      !drawing
-                  );
-                }}
+                    (value) =>
+                      !value
+                  )
+                }
               >
                 ▱
               </button>
-
             </div>
+
+            {/* DRAWING MESSAGE */}
+
+            {isDrawing && (
+              <div className="drawing-notice">
+                CLICK TWO POINTS OR
+                SHIFT + DRAG TO DEFINE
+                AN AOI
+                <span>
+                  ESC TO CANCEL
+                </span>
+              </div>
+            )}
 
             {/* LEGEND */}
 
-            <div className="map-legend">
-
-              <div className="map-legend-title">
-                {metric} {isIndexMap ? "INDEX" : "CHANGE"}
-              </div>
-
-              <div
-                className="legend-gradient-bar"
-                title="Continuous Gradient"
-                style={isIndexMap ? {
-                  background: metric === "NDWI" ? "linear-gradient(to right, #ffffff, #0055ff)" : metric === "NDBI" ? "linear-gradient(to right, #ffffff, #ff0000)" : "linear-gradient(to right, #ffffff, #00aa00)"
-                } : {}}
-              />
-
-              {isIndexMap ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#a0a0a0', marginTop: '4px' }}>
-                  <span>Low (-1.0)</span>
-                  <span>High (1.0)</span>
+            {isTemporal ? (
+              <div className="map-legend">
+                <div className="legend-heading">
+                  {metric || "CHANGE"} CHANGE
                 </div>
-              ) : (
-                <>
-                  <div className="legend-item">
-                    <span className="legend-swatch high" />
-                    <span>
-                      High decrease
-                    </span>
-                  </div>
 
-                  <div className="legend-item">
-                    <span className="legend-swatch moderate" />
-                    <span>
-                      Moderate decrease
-                    </span>
-                  </div>
+                <div className="legend-gradient" />
 
-                  <div className="legend-item">
-                    <span className="legend-swatch slight" />
-                    <span>
-                      Slight decrease
-                    </span>
-                  </div>
+                <div className="legend-scale">
+                  <span>
+                    DECREASE
+                  </span>
 
-                  <div className="legend-item">
-                    <span className="legend-swatch unchanged" />
-                    <span>
-                      No change
-                    </span>
-                  </div>
+                  <span>
+                    NO CHANGE
+                  </span>
 
-                  <div className="legend-item">
-                    <span className="legend-swatch slight-increase" />
-                    <span>
-                      Slight increase
-                    </span>
-                  </div>
+                  <span>
+                    INCREASE
+                  </span>
+                </div>
+              </div>
+            ) : isImageSearch ? (
+              <div className="map-legend map-source-legend">
+                <div className="legend-heading">
+                  SATELLITE IMAGERY
+                </div>
 
-                  <div className="legend-item">
-                    <span className="legend-swatch increase" />
-                    <span>
-                      Moderate increase
-                    </span>
-                  </div>
+                <div className="vqa-source-legend-line">
+                  <span className="vqa-source-dot" style={{ background: "#38bdf8" }} />
+                  <span>
+                    {imageryType === "false_color" ? "False Color (NIR/Red/Green) • 10m" : "True Color (RGB) • 10m"}
+                  </span>
+                </div>
+              </div>
+            ) : isVqa || isCaption ? (
+              <div className="map-legend map-source-legend">
+                <div className="legend-heading">
+                  {isCaption ? "CAPTION SOURCE" : "VQA SOURCE"}
+                </div>
 
-                  <div className="legend-item">
-                    <span className="legend-swatch high-increase" />
-                    <span>
-                      High increase
-                    </span>
-                  </div>
-                </>
-              )}
+                <div className="vqa-source-legend-line">
+                  <span className="vqa-source-dot" />
+                  <span>{vqaSource}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="map-legend map-source-legend optical-sar-legend">
+                <div className="legend-heading">
+                  MULTIMODAL SOURCE
+                </div>
 
-            </div>
+                <div className="vqa-source-legend-line">
+                  <span className="vqa-source-dot optical-sar-dot" />
+                  <span>{opticalSarModalities}</span>
+                </div>
+              </div>
+            )}
 
-            {/* SCALE */}
+            {/* MAP FOOTER */}
 
-            <div className="map-scale">
-
-              <span className="map-scale-line" />
-
+            <div className="map-footer">
               <span>
-                2 km
+                {mapCenter[0].toFixed(
+                  4
+                )}
+                ° N&nbsp;&nbsp;
+                {mapCenter[1].toFixed(
+                  4
+                )}
+                ° E
               </span>
 
+              <span>
+                ESRI WORLD IMAGERY
+              </span>
             </div>
 
-            {/* COORDINATES */}
+            {/* LOADING */}
 
-            <div className="map-coordinates">
+            {loading && (
+              <div className="analysis-loading">
+                <div className="loading-spinner" />
 
-              {mapCenter[0].toFixed(4)}
-              ° N,{" "}
-              {mapCenter[1].toFixed(4)}
-              ° E
+                <div>
+                  <strong>
+                    {isVqa
+                      ? "ANALYZING IMAGE"
+                      : isCaption
+                        ? "GENERATING CAPTION"
+                        : isOpticalSar
+                          ? "ANALYZING MULTIMODAL DATA"
+                          : "ANALYZING AOI"}
+                  </strong>
 
-            </div>
-
+                  <span>
+                    {isVqa
+                      ? "Grounding the visual question in satellite imagery"
+                      : isCaption
+                        ? "Extracting spatial features and describing scene"
+                        : isOpticalSar
+                          ? "Aligning optical and SAR evidence for multimodal analysis"
+                          : "Retrieving satellite imagery and computing change"}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-
         </section>
 
         {/* ====================================================
-            RIGHT — FINDINGS
+            FINDINGS
             ==================================================== */}
 
-        <aside className="findings-panel">
+            <aside className={`findings-panel${
+              isVqa
+                ? " findings-panel-vqa"
+                : isOpticalSar
+                  ? " findings-panel-optical-sar"
+                  : ""
+            }`}>
 
-          {/* FINDINGS */}
+              {isVqa && (
+                <>
+                  <section className="findings-section vqa-answer-section">
+                    <div className="findings-label">
+                      VQA ANSWER
+                    </div>
 
-          <section className="findings-section">
+                    <div className="vqa-answer">
+                      {vqaAnswer}
+                    </div>
+                  </section>
 
-            <div className="findings-label">
-              {isIndexMap ? "INDEX STATISTICS" : "CHANGE FINDINGS"}
-            </div>
+                  <section className="findings-section vqa-confidence-section">
+                    <div className="findings-label">
+                      MODEL CONFIDENCE
+                    </div>
 
-            {isIndexMap ? (
-              <>
-                <div className="finding-stat">
-                  <div className="finding-stat-value">
-                    {Intl.NumberFormat().format((visualizationLayer as any)?.valid_pixels ?? validPixels)}
-                  </div>
-                  <div className="finding-stat-label">
-                    VALID PIXELS
-                  </div>
-                </div>
+                    {confidencePercent != null ? (
+                      <div className="vqa-confidence-row">
+                        <div className="vqa-confidence-value">
+                          {confidencePercent}%
+                        </div>
 
-                <div className="finding-stat">
-                  <div className="finding-stat-value" style={{ whiteSpace: "nowrap" }}>
-                    {formatNumber((visualizationLayer as any)?.min_value, 2)} → {formatNumber((visualizationLayer as any)?.max_value, 2)}
-                  </div>
-                  <div className="finding-stat-label">
-                    VALUE RANGE
-                  </div>
-                </div>
-
-                <div className="finding-stat">
-                  <div className="finding-stat-value">
-                    {confidence}
-                  </div>
-                  <div className="finding-stat-label">
-                    AI CONFIDENCE
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="finding-stat">
-                  <div className="finding-stat-value">
-                    {changedPixels} /{" "}
-                    {validPixels}
-                  </div>
-                  <div className="finding-stat-label">
-                    CHANGED PIXELS
-                  </div>
-                </div>
-
-                <div className="finding-stat">
-                  <div className="finding-stat-value">
-                    {formatSignedNumber(
-                      meanChange
+                        <div className="vqa-confidence-track">
+                          <div
+                            className="vqa-confidence-fill"
+                            style={{
+                              width: `${Math.max(0, Math.min(100, confidencePercent))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="empty-stat-value">
+                        Not available for this analysis.
+                      </div>
                     )}
-                  </div>
-                  <div className="finding-stat-label">
-                    MEAN {metric} CHANGE
-                  </div>
-                </div>
+                  </section>
 
-                <div className="finding-stat">
-                  <div className="finding-stat-value">
-                    {confidence}
-                  </div>
-                  <div className="finding-stat-label">
-                    AI CONFIDENCE
-                  </div>
-                </div>
+                  <section className="findings-section vqa-context-section">
+                    <div className="findings-label">
+                      QUESTION TYPE
+                    </div>
 
-                {/* ADDITIONAL STATISTICS */}
+                    <div className="finding-analysis large">
+                      Visual Question Answering
+                    </div>
 
-                <div className="finding-stat-row">
-                  <div className="finding-stat small">
-                    <div className="finding-stat-value">
-                      {formatSignedNumber(
-                        meanBefore
-                      )}
+                    <div className="findings-label secondary-label">
+                      SOURCE
                     </div>
-                    <div className="finding-stat-label">
-                      BEFORE
-                    </div>
-                  </div>
 
-                  <div className="finding-stat small">
-                    <div className="finding-stat-value">
-                      {formatSignedNumber(
-                        meanAfter
-                      )}
+                    <div className="finding-analysis large">
+                      {vqaSource}
                     </div>
-                    <div className="finding-stat-label">
-                      AFTER
-                    </div>
-                  </div>
-                </div>
+                  </section>
 
-                <div className="finding-stat-row">
-                  <div className="finding-stat small increase-stat">
-                    <div className="finding-stat-value">
-                      {increasedPixels}
+                  <section className="findings-section interpretation-section vqa-interpretation-section">
+                    <div className="findings-label">
+                      EVIDENCE CONTEXT
                     </div>
-                    <div className="finding-stat-label">
-                      INCREASED
-                    </div>
-                  </div>
 
-                  <div className="finding-stat small decrease-stat">
-                    <div className="finding-stat-value">
-                      {decreasedPixels}
-                    </div>
-                    <div className="finding-stat-label">
-                      DECREASED
-                    </div>
-                  </div>
-                </div>
+                    <p className="interpretation-text">
+                      {interpretationText}
+                    </p>
+                  </section>
+                </>
+              )}
 
-                <div className="finding-stat-row">
-                  <div className="finding-stat small">
-                    <div className="finding-stat-value">
-                      {formatPercentage(
-                        changeRatio
-                      )}
+              {isCaption && (
+                <>
+                  <section className="findings-section vqa-answer-section">
+                    <div className="findings-label">
+                      IMAGE CAPTION
                     </div>
-                    <div className="finding-stat-label">
-                      CHANGE RATIO
+
+                    <div className="vqa-answer">
+                      {captionAnswer}
                     </div>
-                  </div>
-                </div>
-              </>
+                  </section>
+
+                  <section className="findings-section vqa-confidence-section">
+                    <div className="findings-label">
+                      MODEL CONFIDENCE
+                    </div>
+
+                    {confidencePercent != null ? (
+                      <div className="vqa-confidence-row">
+                        <div className="vqa-confidence-value">
+                          {confidencePercent}%
+                        </div>
+
+                        <div className="vqa-confidence-track">
+                          <div
+                            className="vqa-confidence-fill"
+                            style={{
+                              width: `${Math.max(0, Math.min(100, confidencePercent))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="empty-stat-value">
+                        Not available for this analysis.
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="findings-section vqa-context-section">
+                    <div className="findings-label">
+                      TASK TYPE
+                    </div>
+
+                    <div className="finding-analysis large">
+                      Remote Sensing Image Captioning
+                    </div>
+
+                    <div className="findings-label secondary-label">
+                      SOURCE
+                    </div>
+
+                    <div className="finding-analysis large">
+                      {vqaSource}
+                    </div>
+                  </section>
+
+                  <section className="findings-section interpretation-section vqa-interpretation-section">
+                    <div className="findings-label">
+                      SCENE CONTEXT
+                    </div>
+
+                    <p className="interpretation-text">
+                      {interpretationText}
+                    </p>
+                  </section>
+                </>
+              )}
+
+              {isImageSearch && (
+                <>
+                  <section className="findings-section vqa-answer-section">
+                    <div className="findings-label">
+                      IMAGERY OVERVIEW
+                    </div>
+
+                    <div className="vqa-answer-box" style={{ borderColor: "rgba(56, 189, 248, 0.4)", background: "rgba(56, 189, 248, 0.05)" }}>
+                      <div className="vqa-answer-text">
+                        {rawAnswer || "Multi-spectral optical surface reflectance imagery retrieved and georeferenced for target location."}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="findings-section">
+                    <div className="findings-label">
+                      SCENE PROPERTIES
+                    </div>
+
+                    <div className="finding-stat">
+                      <div className="finding-stat-value">
+                        {imageryRef === "before" ? beforeDate : afterDate !== "—" ? afterDate : beforeDate}
+                      </div>
+                      <div className="finding-stat-label">
+                        ACQUISITION DATE
+                      </div>
+                      <div className="finding-stat-description">
+                        Satellite capture timestamp
+                      </div>
+                    </div>
+
+                    <div className="finding-stat">
+                      <div className="finding-stat-value">
+                        10m
+                      </div>
+                      <div className="finding-stat-label">
+                        SPATIAL RESOLUTION
+                      </div>
+                      <div className="finding-stat-description">
+                        Ground sample distance (10m per pixel)
+                      </div>
+                    </div>
+
+                    <div className="finding-stat">
+                      <div className="finding-stat-value">
+                        {cloudCoverText}
+                      </div>
+                      <div className="finding-stat-label">
+                        CLOUD COVERAGE
+                      </div>
+                      <div className="finding-stat-description">
+                        Scene cloud and shadow occlusion
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="findings-section indicator-section">
+                    <div className="findings-label">
+                      SENSOR PLATFORM
+                    </div>
+
+                    <div className="finding-analysis large">
+                      European Space Agency Sentinel-2 MSI
+                    </div>
+
+                    <div className="findings-label secondary-label">
+                      PROCESSING LEVEL
+                    </div>
+
+                    <div className="finding-analysis large">
+                      Level-2A Bottom-Of-Atmosphere (BOA) Reflectance
+                    </div>
+                  </section>
+
+                  <section className="findings-section interpretation-section">
+                    <div className="findings-label">
+                      SCENE CONTEXT
+                    </div>
+
+                    <p className="interpretation-text">
+                      {interpretationText}
+                    </p>
+                  </section>
+                </>
+              )}
+
+              {isTemporal && (
+                <>
+
+  {/* ======================================================
+      PRIMARY FINDINGS
+      ====================================================== */}
+
+  <section className="findings-section">
+
+    <div className="findings-label">
+      {isIndexMap
+        ? "INDEX STATISTICS"
+        : "FINDINGS"}
+    </div>
+
+
+    {!isIndexMap && (
+      <div className="finding-stat">
+
+        <div className="finding-stat-value">
+          {changeCoverage.toFixed(1)}%
+        </div>
+
+        <div className="finding-stat-label">
+          CHANGE COVERAGE
+        </div>
+
+        <div className="finding-stat-description">
+          of valid pixels show measurable
+          change across the selected area.
+        </div>
+
+      </div>
+    )}
+
+
+    <div className="finding-stat">
+
+      <div className="finding-stat-value">
+        {formatSignedNumber(meanChange)}
+      </div>
+
+      <div className="finding-stat-label">
+        MEAN {metric} CHANGE
+      </div>
+
+    </div>
+
+
+    {!isIndexMap && (
+      <div className="finding-stat">
+
+        <div className="finding-stat-value finding-stat-value-compact">
+          {beforeAfterValue}
+        </div>
+
+        <div className="finding-stat-label">
+          {metric} BEFORE → AFTER
+        </div>
+
+      </div>
+    )}
+
+
+    {isIndexMap && (
+      <>
+        <div className="finding-stat">
+
+          <div className="finding-stat-value">
+            {formatNumber(
+              (visualizationLayer as any)?.min_value,
+              2
             )}
-
-          </section>
-
-          {/* CHANGE SUMMARY */}
-
-          {!isIndexMap && (
-            <section className="findings-section">
-
-              <div className="findings-label">
-                CHANGE SUMMARY
-              </div>
-
-              <div className="analysis-data-row">
-
-                <span className="analysis-data-label">
-                  BEFORE
-                </span>
-
-                <span className="analysis-data-value">
-                  {formatNumber(
-                    meanBefore
-                  )}
-                </span>
-
-              </div>
-
-              <div className="analysis-data-row">
-
-                <span className="analysis-data-label">
-                  AFTER
-                </span>
-
-                <span className="analysis-data-value">
-                  {formatNumber(
-                    meanAfter
-                  )}
-                </span>
-
-              </div>
-
-              <div className="analysis-data-row">
-
-                <span className="analysis-data-label">
-                  THRESHOLD
-                </span>
-
-                <span className="analysis-data-value">
-                  {statistics.threshold !=
-                  null
-                    ? Number(
-                        statistics.threshold
-                      ).toFixed(2)
-                    : "—"}
-                </span>
-
-              </div>
-
-            </section>
-          )}
-
-          {/* VISUALIZATION STATUS */}
-
-          {!fullVisualizationUrl && (
-            <section className="findings-section">
-
-              <div className="findings-label">
-                VISUALIZATION
-              </div>
-
-              <div className="analysis-data-value">
-                Backend change-map
-                visualization
-                unavailable.
-              </div>
-
-            </section>
-          )}
-
-          {fullVisualizationUrl &&
-            !changeMapBounds && (
-              <section className="findings-section">
-
-                <div className="findings-label">
-                  VISUALIZATION
-                </div>
-
-                <div className="analysis-data-value">
-                  Change raster available,
-                  but backend raster
-                  bounds are missing.
-                </div>
-
-              </section>
+            {" → "}
+            {formatNumber(
+              (visualizationLayer as any)?.max_value,
+              2
             )}
+          </div>
 
-          {/* VIEW DETAILS */}
+          <div className="finding-stat-label">
+            VALUE RANGE
+          </div>
 
-          <div className="analysis-navigation-button">
+        </div>
 
-            <button type="button" className="view-details-button layers-navigation-button" onClick={onViewLayers}>
-              <span>
-                LAYERS
-              </span>
+        <div className="finding-stat">
 
-              <span>
-                →
-              </span>
-            </button>
+          <div className="finding-stat-value">
+            {formatNumber(
+              (statistics as any)?.mean,
+              4
+            )}
+          </div>
 
-            <button type="button" className="view-details-button" onClick={onViewDetails}>
+          <div className="finding-stat-label">
+            MEAN {metric}
+          </div>
 
-              <span>
-                VIEW DETAILS
-              </span>
+        </div>
+      </>
+    )}
 
-              <span>
-                →
-              </span>
-              
-            </button>
+  </section>
+
+
+  {/* ======================================================
+      CHANGE DISTRIBUTION
+      ====================================================== */}
+
+  {!isIndexMap && (
+    <section className="findings-section distribution-section">
+
+      <div className="findings-label">
+        CHANGE DISTRIBUTION
+      </div>
+
+
+      {validPixels > 0 ? (
+        <>
+          <div className="distribution-stack">
+
+            <div
+              className="distribution-segment distribution-decrease"
+              style={{
+                width: `${decreaseShare}%`,
+              }}
+              title={`Decrease: ${decreaseShare.toFixed(1)}%`}
+            />
+
+            <div
+              className="distribution-segment distribution-stable"
+              style={{
+                width: `${unchangedShare}%`,
+              }}
+              title={`Stable: ${unchangedShare.toFixed(1)}%`}
+            />
+
+            <div
+              className="distribution-segment distribution-increase"
+              style={{
+                width: `${increaseShare}%`,
+              }}
+              title={`Increase: ${increaseShare.toFixed(1)}%`}
+            />
 
           </div>
 
-        </aside>
 
+          <div className="distribution-values">
+
+            <div className="distribution-value decrease-value">
+              <strong>
+                {decreaseShare.toFixed(1)}%
+              </strong>
+
+              <span>
+                DECREASE
+              </span>
+            </div>
+
+
+            <div className="distribution-value stable-value">
+              <strong>
+                {unchangedShare.toFixed(1)}%
+              </strong>
+
+              <span>
+                STABLE
+              </span>
+            </div>
+
+
+            <div className="distribution-value increase-value">
+              <strong>
+                {increaseShare.toFixed(1)}%
+              </strong>
+
+              <span>
+                INCREASE
+              </span>
+            </div>
+
+          </div>
+
+
+          <div className="distribution-footnote">
+            SHARE OF VALID PIXELS
+          </div>
+        </>
+      ) : (
+        <div className="empty-stat-value">
+          Not available for this analysis.
+        </div>
+      )}
+
+    </section>
+  )}
+
+
+  {/* ======================================================
+      INDICATORS
+      ====================================================== */}
+
+  <section className="findings-section indicator-section">
+
+    <div className="findings-label">
+      PRIMARY INDICATOR
+    </div>
+
+    <div className="finding-analysis large">
+      {primaryIndicator}
+    </div>
+
+
+    <div className="findings-label secondary-label">
+      SUPPORTING INDICATOR
+    </div>
+
+    <div className="finding-analysis large">
+      {supportingIndicator}
+    </div>
+
+  </section>
+
+
+  {/* ======================================================
+      INTERPRETATION
+      ====================================================== */}
+
+  {!isIndexMap && (
+    <section className="findings-section interpretation-section">
+
+      <div className="findings-label">
+        INTERPRETATION
+      </div>
+
+      <p className="interpretation-text">
+        {interpretationText}
+      </p>
+
+    </section>
+  )}
+
+
+                </>
+              )}
+
+  {isOpticalSar && (
+    <>
+      <section className="findings-section vqa-answer-section optical-sar-answer-section">
+        <div className="findings-label">
+          MULTIMODAL FINDING
+        </div>
+
+        <div className="vqa-answer">
+          {opticalSarAnswer}
+        </div>
       </section>
 
+      <section className="findings-section vqa-confidence-section">
+        <div className="findings-label">
+          MODEL CONFIDENCE
+        </div>
+
+        {confidencePercent != null ? (
+          <div className="vqa-confidence-row">
+            <div className="vqa-confidence-value">
+              {confidencePercent}%
+            </div>
+
+            <div className="vqa-confidence-track">
+              <div
+                className="vqa-confidence-fill"
+                style={{
+                  width: `${Math.max(0, Math.min(100, confidencePercent))}%`,
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="empty-stat-value">
+            Not available for this analysis.
+          </div>
+        )}
+      </section>
+
+      <section className="findings-section optical-sar-modalities-section">
+        <div className="findings-label">
+          MODALITIES
+        </div>
+
+        <div className="finding-analysis large">
+          {opticalSarModalities}
+        </div>
+      </section>
+
+      <section className="findings-section">
+        <div className="findings-label">
+          ANALYSIS TYPE
+        </div>
+
+        <div className="finding-analysis large">
+          Optical + SAR analysis
+        </div>
+
+        <div className="findings-label secondary-label">
+          EVIDENCE
+        </div>
+
+        <div className="finding-analysis large">
+          Multimodal satellite evidence
+        </div>
+      </section>
+
+      <section className="findings-section interpretation-section vqa-interpretation-section">
+        <div className="findings-label">
+          INTERPRETATION
+        </div>
+
+        <p className="interpretation-text">
+          The result combines complementary optical and radar observations to interpret the selected scene.
+        </p>
+      </section>
+    </>
+  )}
+
+  {/* ======================================================
+      NAVIGATION
+      ====================================================== */}
+
+  <div className="analysis-navigation-button">
+
+    {onViewLayers && (
+      <button
+        type="button"
+        className="view-details-button layers-navigation-button"
+        onClick={onViewLayers}
+      >
+        <span>
+          LAYERS
+        </span>
+
+        <span>
+          →
+        </span>
+      </button>
+    )}
+
+
+    <button
+      type="button"
+      className="view-details-button"
+      onClick={onViewDetails}
+    >
+      <span>
+        VIEW DETAILS
+      </span>
+
+      <span>
+        →
+      </span>
+    </button>
+
+  </div>
+
+</aside>
+
+        
+      </section>
     </main>
   );
 }

@@ -348,10 +348,12 @@ def answer_optical_sar_question(
                     "model": "unavailable",
                     "status": "unavailable",
                     "adapter_loaded": False,
+                    "confidence": None,
                 }
 
 
     try:
+        model_confidence = None
         from app.vlm.rs_vlm import RSVLM
         if isinstance(vlm_instance, RSVLM):
             rs_res = vlm_instance.explain_optical_sar(
@@ -366,6 +368,7 @@ def answer_optical_sar_question(
             model_name = rs_res.get("model", "mock-rs-vlm")
             model_status = rs_res.get("status", "mock")
             adapter_loaded = rs_res.get("adapter_loaded", False)
+            model_confidence = rs_res.get("confidence")
         else:
             raw_answer = vlm_instance.generate(
                 image=opt_image,
@@ -377,6 +380,8 @@ def answer_optical_sar_question(
             model_name = getattr(vlm_instance, "model_id", "custom-vlm")
             model_status = "custom"
             adapter_loaded = False
+            raw_conf = getattr(vlm_instance, "confidence", None)
+            model_confidence = raw_conf if not callable(raw_conf) else None
 
         if not answer:
             raise RuntimeError("VLM returned an empty response.")
@@ -384,6 +389,7 @@ def answer_optical_sar_question(
         return {
             "success": True,
             "answer": answer,
+            "confidence": model_confidence,
             "error": None,
             "fallback": False,
             "modalities": modalities,
@@ -411,6 +417,7 @@ def answer_optical_sar_question(
         return {
             "success": True,
             "answer": fallback_answer,
+            "confidence": None,
             "error": f"VLM inference failed ({gen_err}); provided deterministic interpretation.",
             "fallback": True,
             "modalities": modalities,
@@ -460,6 +467,7 @@ def run_optical_sar_analysis(
             "evidence_used": False,
             "visuals": {},
             "fallback": False,
+            "confidence": None,
         }
 
     return answer_optical_sar_question(

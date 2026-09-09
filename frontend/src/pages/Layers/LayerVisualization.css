@@ -209,10 +209,17 @@
    BACK TO ANALYSIS
    ========================================================= */
 
+.layers-header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 26px;
+}
+
 .layers-back-button {
   width: fit-content;
 
-  margin: 0 0 34px;
+  margin: 0;
 
   padding: 0;
 
@@ -239,6 +246,78 @@
 
 .layers-back-button:hover {
   color: var(--ink);
+}
+
+.layers-results-button {
+  width: fit-content;
+
+  margin: 0;
+
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: #277f8a;
+
+  text-align: right;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  letter-spacing: 0.3px;
+
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.layers-results-button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.layer-check-row.disabled,
+.layer-radio-row.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.layer-check-row.disabled input,
+.layer-radio-row.disabled input {
+  cursor: not-allowed;
+}
+
+.layer-unavailable-tag {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+.empty-raster-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  background: rgba(17, 17, 15, 0.88);
+  backdrop-filter: blur(6px);
+  color: #f5f1e9;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  text-align: center;
+  pointer-events: none;
 }
 
 
