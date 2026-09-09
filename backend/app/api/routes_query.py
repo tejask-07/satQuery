@@ -58,9 +58,10 @@ def _safe_vis_url(filename: Optional[str]) -> Optional[str]:
 # ============================================================
 
 from app.vlm.evidence_builder import build_evidence
-from app.vlm.model import VLM
+from app.vlm.rs_vlm import get_rs_vlm
 from app.vlm.p2_imagery import load_p2_images
 from app.vlm.bigearthnet.s1_p4 import build_s1_visualization
+from app.vlm.model import VLM
 
 
 router = APIRouter(
@@ -546,30 +547,41 @@ def generate_vlm_answer(
         )
 
         # ====================================================
-        # 4. Run P4 VLM
+        # 4. Run RS-VLM
         # ====================================================
 
-        vlm = VLM()
+        rs_vlm = get_rs_vlm()
 
-        return vlm.generate(
-            question=request.query,
+        vlm_res = rs_vlm.explain_change(
+            before_image=images.get("before"),
+            after_image=images.get("after"),
             evidence=evidence,
-            images=images,
+            change_map=images.get("change_map"),
+            question=request.query,
+            metadata={"s1_composite": images.get("s1_composite") is not None},
         )
+        return {
+            "answer": vlm_res.get("answer"),
+            "model": rs_vlm.get_model_info(),
+            "status": vlm_res.get("status", "mock"),
+            "adapter_loaded": vlm_res.get("adapter_loaded", False),
+            "confidence": vlm_res.get("confidence"),
+        }
 
     except Exception as exc:
 
         # ----------------------------------------------------
         # Keep P2 analysis working even when
-        # the optional P4 layer fails.
+        # the optional RS-VLM layer fails.
         # ----------------------------------------------------
 
         print(
-            f"[P4 VLM WARNING] "
+            f"[RS-VLM WARNING] "
             f"{type(exc).__name__}: {exc}"
         )
 
         return None
+
 
 
 _PATH_PATTERN = re.compile(
@@ -824,6 +836,28 @@ def process_query(
         request
     )
 
+    # --------------------------------------------------------
+    # Query / Input Compatibility Validation
+    # --------------------------------------------------------
+    from app.remote_sensing.validation import validate_query_input_compatibility
+    from app.schemas.validation import ValidationErrorCode, ValidationResult
+
+    comp_res = validate_query_input_compatibility(
+        query=request.query,
+        image_ids=request.image_ids,
+        optical_image_id=getattr(request, "optical_image_id", None),
+        sar_image_id=getattr(request, "sar_image_id", None),
+        aoi=plan.aoi or getattr(request, "aoi", None),
+        time_start=plan.time_start or getattr(request, "time_start", None),
+        time_end=plan.time_end or getattr(request, "time_end", None),
+        task=plan.task,
+    )
+    if not comp_res.valid:
+        raise HTTPException(
+            status_code=400,
+            detail=comp_res.to_http_detail(),
+        )
+
     # ========================================================
     # 2. Create execution plan
     # ========================================================
@@ -853,9 +887,21 @@ def process_query(
                     image_ids=request.image_ids,
                 )
             except (ValueError, FileNotFoundError) as ref_err:
+                err_msg = str(ref_err)
+                err_code = (
+                    ValidationErrorCode.INCOMPATIBLE_IMAGE_PAIR
+                    if "pair" in err_msg.lower() or "conflict" in err_msg.lower()
+                    else ValidationErrorCode.MISSING_IMAGE
+                )
+                val_err = ValidationResult(
+                    valid=False,
+                    error_code=err_code,
+                    message=err_msg,
+                    details={"error": err_msg},
+                )
                 raise HTTPException(
                     status_code=400,
-                    detail=str(ref_err),
+                    detail=val_err.to_http_detail(),
                 )
         else:
             # Mode B: Automatic Acquisition Validation
@@ -1900,18 +1946,30 @@ def process_query(
     evidence_package["calibration"] = calibration
     p2_response["evidence_package"] = evidence_package
 
-    vlm_answer = generate_vlm_answer(
+    vlm_result = generate_vlm_answer(
         request=request,
         p2_response=p2_response,
     )
 
-    if vlm_answer:
-        execution_trace.append(
-            "P4 VLM inference completed"
-        )
+    model_metadata = None
+    vlm_answer = None
+    if vlm_result and vlm_result.get("answer"):
+        vlm_answer = vlm_result.get("answer")
+        model_metadata = vlm_result.get("model")
+        status_val = vlm_result.get("status", "mock")
+        execution_trace.append(f"RS-VLM inference completed (status: {status_val})")
     else:
         execution_trace.append(
-            "P4 VLM unavailable; using backend explanation"
+            "RS-VLM unavailable; using backend explanation"
+        )
+        model_metadata = (
+            vlm_result.get("model")
+            if vlm_result
+            else {
+                "name": "mock-rs-vlm",
+                "status": "unavailable",
+                "adapter_loaded": False,
+            }
         )
 
     # ========================================================
@@ -1924,10 +1982,35 @@ def process_query(
         else grounded_explanation
     )
 
+    # Build structured execution summary
+    analysis_steps = []
+    plan_analysis = getattr(plan, "analysis", []) or []
+    for tool_name in plan_analysis:
+        analysis_steps.append({"tool": tool_name, "status": "success"})
+    if vlm_result and vlm_result.get("status"):
+        analysis_steps.append({"tool": "rs_vlm", "status": vlm_result.get("status")})
+    elif plan.task != "image_search":
+        analysis_steps.append({"tool": "rs_vlm", "status": "unavailable"})
+
+
+    execution_summary = {
+        "query": request.query,
+        "task": plan.task,
+        "steps": analysis_steps,
+        "evidence": evidence,
+        "model": model_metadata or {
+            "name": "mock-rs-vlm",
+            "status": "mock",
+            "adapter_loaded": False,
+        },
+    }
+
+    result_confidence = vlm_result.get("confidence") if vlm_result else None
+
     return AnalysisResult(
         status="success",
         answer=final_answer,
-        confidence=0.9,
+        confidence=result_confidence,
         plan=plan.model_dump(),
         statistics=statistics,
         layers=layers,
@@ -1945,4 +2028,7 @@ def process_query(
         classified_visualization_url=classified_visualization_url,
         bounds=visualization_bounds,
         evidence_package=evidence_package,
+        model=model_metadata,
+        execution_summary=execution_summary,
     )
+

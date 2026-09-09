@@ -33,6 +33,8 @@ from app.agent.executor import (
 )
 from app.schemas.analysis import AnalysisResult
 from app.schemas.query import QueryPlan
+from app.schemas.validation import ValidationError, ValidationErrorCode, ValidationResult
+from app.remote_sensing.validation import validate_temporal_pair
 from app.tools.change import detect_change
 from app.tools.indices import (
     calculate_temporal_ndbi,
@@ -40,7 +42,7 @@ from app.tools.indices import (
     calculate_temporal_ndwi,
 )
 from app.vlm.bigearthnet.s1_p4 import build_s1_visualization
-from app.vlm.model import VLM
+from app.vlm.rs_vlm import get_rs_vlm
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +214,13 @@ def inspect_image(
             band_data["green"] = np_rgb[:, :, 1]
             band_data["blue"] = np_rgb[:, :, 2]
         except Exception as pil_err:
-            raise ValueError(f"Could not open image '{filename}': {pil_err}")
+            res = ValidationResult(
+                valid=False,
+                error_code=ValidationErrorCode.INVALID_IMAGE,
+                message=f"Could not open image '{filename}': {pil_err}",
+                details={"filename": filename, "error": str(pil_err)},
+            )
+            raise ValidationError(res)
 
     return {
         "filename": filename,
@@ -280,14 +288,22 @@ def process_upload_analysis(
     Returns:
         AnalysisResult matching the unified SatQuery response contract.
     """
-    if not before_bytes or not after_bytes:
-        raise ValueError("Two non-empty images (before and after) are required for change analysis.")
+    # Strict input validation for temporal pair
+    val_res = validate_temporal_pair(
+        before_bytes=before_bytes,
+        after_bytes=after_bytes,
+        before_name=before_name,
+        after_name=after_name,
+        query=query,
+    )
+    if not val_res.valid:
+        raise ValidationError(val_res)
 
     # 1. Inspect both uploaded images
     info_before = inspect_image(before_bytes, before_name)
     info_after = inspect_image(after_bytes, after_name)
 
-    # Align spatial dimensions if they differ
+    # Align spatial dimensions if they differ and pair passed validation
     w_b, h_b = info_before["width"], info_before["height"]
     w_a, h_a = info_after["width"], info_after["height"]
 
@@ -304,6 +320,7 @@ def process_upload_analysis(
 
     # 2. Parse query intent
     plan_info = parse_upload_query(query)
+
     task = plan_info["task"]
     target = plan_info["target"]
     requested_metric = plan_info["requested_metric"]
@@ -542,18 +559,30 @@ def process_upload_analysis(
         "Generated change map visualizations",
     ]
 
+    vlm_model_info = None
+    vlm_res = None
     try:
-        vlm = VLM()
-        vlm_answer = vlm.generate(
-            question=query,
+        rs_vlm = get_rs_vlm()
+        vlm_res = rs_vlm.explain_change(
+            before_image=vlm_images.get("before"),
+            after_image=vlm_images.get("after"),
             evidence=evidence_text,
-            images=vlm_images,
+            change_map=vlm_images.get("change_map"),
+            question=query,
         )
+        vlm_answer = vlm_res.get("answer")
+        vlm_model_info = rs_vlm.get_model_info()
+        status_val = vlm_res.get("status", "mock")
         if vlm_answer:
-            execution_trace.append("P4 VLM multimodal inference completed")
+            execution_trace.append(f"RS-VLM multimodal inference completed (status: {status_val})")
     except Exception as vlm_err:
-        logger.info(f"P4 VLM skipped/unavailable: {vlm_err}")
-        execution_trace.append(f"P4 VLM unavailable: {vlm_err}")
+        logger.info(f"RS-VLM skipped/unavailable: {vlm_err}")
+        execution_trace.append(f"RS-VLM unavailable: {vlm_err}")
+        vlm_model_info = {
+            "name": "mock-rs-vlm",
+            "status": "unavailable",
+            "adapter_loaded": False,
+        }
 
     # Fallback explanation if VLM answer is None
     if not vlm_answer:
@@ -584,10 +613,29 @@ def process_upload_analysis(
                 f"({c_pixels} changed pixels with threshold {thresh})."
             )
 
+    execution_summary = {
+        "query": query,
+        "task": plan_dict.get("task", "temporal_change"),
+        "steps": [
+            {"tool": "inspect_image", "status": "success"},
+            {"tool": f"calculate_temporal_{actual_metric.lower()}", "status": "success"},
+            {"tool": "detect_change", "status": "success"},
+            {"tool": "rs_vlm", "status": (vlm_res or {}).get("status", "mock" if vlm_answer else "unavailable")},
+        ],
+        "evidence": [evidence_item],
+        "model": vlm_model_info or {
+            "name": "mock-rs-vlm",
+            "status": "mock",
+            "adapter_loaded": False,
+        },
+    }
+
+    result_confidence = vlm_res.get("confidence") if vlm_res else None
+
     return AnalysisResult(
         status="success",
         answer=vlm_answer,
-        confidence=0.9 if not spectral_warning else 0.8,
+        confidence=result_confidence,
         plan=plan_dict,
         statistics=stats,
         layers=[layer_item],
@@ -601,4 +649,7 @@ def process_upload_analysis(
             "after": after_img_url,
             "change_map": vis_url,
         },
+        model=vlm_model_info,
+        execution_summary=execution_summary,
     )
+

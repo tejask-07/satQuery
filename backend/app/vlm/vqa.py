@@ -2,8 +2,12 @@
 
 from typing import Any, Optional
 
-from app.vlm.model import VLM
+from app.vlm.model import VLM as _OriginalVLM
 from app.vlm.rs_prompts import build_rs_prompt
+from app.vlm.rs_vlm import get_rs_vlm
+
+# Exposed for backward compatibility and test fixture monkeypatching
+VLM = _OriginalVLM
 
 
 VQA_PROMPT = """You are performing single-image remote-sensing visual question answering for SatQuery.
@@ -40,28 +44,58 @@ def run_vqa(
     question: str,
     modality: str = "unknown",
     evidence: Optional[Any] = None,
+    rs_vlm: Optional[Any] = None,
 ) -> dict:
-    """Answer one question about one image using the shared VLM."""
+    """Answer one question about one image using the RS-VLM runtime abstraction."""
     if not isinstance(question, str) or not question.strip():
         raise ValueError("question must be a non-empty string")
 
-    normalized_modality = modality.strip().lower() if isinstance(modality, str) else "unknown"
-    prompt = build_rs_prompt(VQA_PROMPT.format(
-        question=question.strip(),
-        modality=normalized_modality,
-    ))
+    normalized_modality = (
+        modality.strip().lower() if isinstance(modality, str) else "unknown"
+    )
+    prompt = build_rs_prompt(
+        VQA_PROMPT.format(
+            question=question.strip(),
+            modality=normalized_modality,
+        )
+    )
 
-    vlm = VLM()
-    answer = vlm.generate(
+    # If VLM is monkeypatched in tests or custom legacy caller
+    if VLM is not _OriginalVLM:
+        vlm = VLM()
+        answer = vlm.generate(
+            image=image,
+            question=prompt,
+            evidence=evidence,
+        )
+        return {
+            "task": "single_image_vqa",
+            "question": question,
+            "answer": answer,
+            "modality": normalized_modality,
+            "confidence": None,
+        }
+
+    # Standard RS-VLM runtime routing
+    runtime = rs_vlm or get_rs_vlm()
+    structured = runtime.answer(
         image=image,
         question=prompt,
         evidence=evidence,
+        task="single_image_vqa",
+        metadata={"modality": normalized_modality, "raw_question": question},
     )
 
     return {
         "task": "single_image_vqa",
         "question": question,
-        "answer": answer,
+        "answer": structured.get("answer"),
         "modality": normalized_modality,
-        "confidence": None,
+        "confidence": structured.get("confidence"),
+        "model": structured.get("model", "mock-rs-vlm"),
+        "status": structured.get("status", "mock"),
+        "adapter_loaded": structured.get("adapter_loaded", False),
+        "observations": structured.get("observations", []),
+        "evidence_used": structured.get("evidence_used", False),
     }
+

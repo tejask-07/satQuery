@@ -11,12 +11,33 @@ def create_execution_plan(query_plan: QueryPlan) -> List[str]:
     task = query_plan.task
     target = (query_plan.target or "").lower()
 
-    if task == "optical_sar_analysis":
+    if task in {"single_image_vqa", "vqa"}:
+        return [
+            "single_image_vqa",
+        ]
+
+    if task in {"captioning", "single_image_caption", "caption"}:
+        return [
+            "captioning",
+        ]
+
+    if task in {"optical_sar_analysis", "optical_sar"}:
         return [
             "optical_sar_analysis",
         ]
 
+    if task == "temporal_change":
+        return [
+            "search_imagery",
+            "calculate_temporal_ndvi",
+            "calculate_temporal_ndwi",
+            "calculate_temporal_ndbi",
+            "detect_change",
+            "rs_vlm",
+        ]
+
     if task == "urban_change" or (task == "change_detection" and target == "urban"):
+
         return [
             "search_imagery",
             "calculate_temporal_ndbi",

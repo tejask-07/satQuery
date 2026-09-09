@@ -17,6 +17,11 @@ from app.tools.comparison import compare_images
 # Optical-SAR multimodal analysis tool
 from app.vlm.optical_sar import run_optical_sar_analysis
 
+# RS-VLM Multimodal reasoning tools
+from app.vlm.vqa import run_vqa
+from app.vlm.caption import run_caption
+from app.vlm.rs_vlm import get_rs_vlm
+
 
 TOOL_REGISTRY = {
     # Imagery
@@ -40,7 +45,13 @@ TOOL_REGISTRY = {
 
     # Optical-SAR analysis
     "optical_sar_analysis": run_optical_sar_analysis,
+
+    # RS-VLM multimodal reasoning
+    "single_image_vqa": run_vqa,
+    "captioning": run_caption,
+    "rs_vlm": get_rs_vlm,
 }
+
 
 
 def get_tool(tool_name: str):

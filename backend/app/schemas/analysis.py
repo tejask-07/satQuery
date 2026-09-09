@@ -25,3 +25,5 @@ class AnalysisResult(BaseModel):
     spatial_analysis: Optional[Dict[str, Any]] = None
     temporal_analysis: Optional[Dict[str, Any]] = None
     calibration: Optional[Dict[str, Any]] = None
+    model: Optional[Dict[str, Any]] = None
+    execution_summary: Optional[Dict[str, Any]] = None

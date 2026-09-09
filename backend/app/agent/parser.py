@@ -15,8 +15,12 @@ ALLOWED_INTENTS = {
     "image_comparison",
     "image_search",
     "optical_sar_analysis",
+    "single_image_vqa",
+    "captioning",
+    "temporal_change",
     "unknown",
 }
+
 
 ALLOWED_INDICATORS = {
     "NDVI",
@@ -344,9 +348,52 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
     )
 
     # --------------------------------------------------------
+    # 0A. CAPTIONING INTENT
+    # --------------------------------------------------------
+    is_caption = (
+        re.search(r"\b(?:caption|generate\s+(?:a\s+)?caption|describe\s+(?:this\s+)?(?:image|scene|satellite))\b", query) is not None
+        or query.strip().startswith("caption")
+    )
+    if is_caption and not is_change_query:
+        return QueryPlan(
+            task="captioning",
+            intent="captioning",
+            target=None,
+            targets=[],
+            aoi=aoi,
+            modalities=["optical"],
+            analysis=["captioning"],
+            outputs=["explanation", "confidence"],
+        )
+
+    # --------------------------------------------------------
+    # 0B. SINGLE-IMAGE VQA INTENT
+    # --------------------------------------------------------
+    is_vqa = (
+        (
+            re.search(r"\b(?:what\s+is\s+visible|what\s+type\s+of\s+land\s+cover|is\s+there\s+a\s+water\s+body|are\s+there\s+built-up|what\s+major\s+objects)\b", query) is not None
+            or re.search(r"\b(?:what\s+is\s+in\s+this\s+image|answer\s+this\s+question)\b", query) is not None
+        )
+        and not is_change_query
+        and not has_temporal_input
+    )
+    if is_vqa:
+        return QueryPlan(
+            task="single_image_vqa",
+            intent="single_image_vqa",
+            target=None,
+            targets=[],
+            aoi=aoi,
+            modalities=["optical"],
+            analysis=["single_image_vqa"],
+            outputs=["explanation", "confidence"],
+        )
+
+    # --------------------------------------------------------
     # 1. LAND COVER TRANSITION
     # --------------------------------------------------------
     transition = detect_transition(query)
+
     if transition:
         src, dst = transition
         src_idx = CATEGORY_PRIMARY_INDEX.get(src, "NDVI")

@@ -234,10 +234,12 @@ def determine_raster_modality(
         all_desc_text = " ".join(descriptions)
         combined_text = f"{name_upper} {all_desc_text} {tag_text}"
 
-        has_sar_tags = any(
-            k in combined_text
+        has_sar_band_tags = any(
+            k in f"{all_desc_text} {tag_text}"
             for k in ("VV", "VH", "HH", "HV", "POLARIZ", "POLARIS", "SIGMA0", "GAMMA0", "BETA0", "BACKSCATTER")
-        ) or any(
+        )
+
+        has_sar_tags = has_sar_band_tags or any(
             k in name_upper
             for k in ("SAR", "SENTINEL1", "SENTINEL-1", "S1_", "S1A_", "S1B_", "RADAR")
         )
@@ -255,14 +257,14 @@ def determine_raster_modality(
 
         # 1. Explicit declaration validation
         if dec_mod == "sar":
-            if band_count >= 3 and has_optical_tags and not has_sar_tags:
+            if band_count >= 3 and has_optical_tags and not has_sar_band_tags:
                 raise ValueError(
                     f"Declared modality 'sar' conflicts with optical multi-spectral bands in '{path.name}'."
                 )
             return "sar", "explicit_metadata"
 
         if dec_mod == "optical":
-            if band_count <= 2 and has_sar_tags and not has_optical_tags:
+            if band_count <= 2 and has_sar_band_tags and not has_optical_tags:
                 raise ValueError(
                     f"Declared modality 'optical' conflicts with SAR polarization tags in '{path.name}'."
                 )

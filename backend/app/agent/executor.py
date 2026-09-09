@@ -2358,12 +2358,95 @@ def execute_plan(
                     result["metadata"]["optical_sar_pair"] = pair_metadata
 
         # =====================================================
+        # RS-VLM REASONING: SINGLE IMAGE VQA
+        # =====================================================
+
+        elif tool_name == "single_image_vqa":
+
+            q_text = context.get("question") or context.get("query") or "What is in this image?"
+            img = context.get("image") or context.get("optical_image")
+            mod = context.get("modality", "unknown")
+            ev = context.get("evidence")
+            rs_vlm_inst = context.get("rs_vlm") or context.get("vlm")
+
+            result = tool(
+                image=img,
+                question=q_text,
+                modality=mod,
+                evidence=ev,
+                rs_vlm=rs_vlm_inst,
+            )
+
+        # =====================================================
+        # RS-VLM REASONING: CAPTIONING
+        # =====================================================
+
+        elif tool_name == "captioning":
+
+            img = context.get("image") or context.get("optical_image")
+            mod = context.get("modality", "unknown")
+            ev = context.get("evidence")
+            rs_vlm_inst = context.get("rs_vlm") or context.get("vlm")
+
+            result = tool(
+                image=img,
+                modality=mod,
+                evidence=ev,
+                rs_vlm=rs_vlm_inst,
+            )
+
+        # =====================================================
+        # RS-VLM REASONING: TEMPORAL CHANGE / GENERAL SYNTHESIS
+        # =====================================================
+
+        elif tool_name == "rs_vlm":
+
+            from app.vlm.rs_vlm import RSVLM, get_rs_vlm
+            rs_vlm_inst = context.get("rs_vlm") or context.get("vlm") or get_rs_vlm()
+            q_text = context.get("question") or context.get("query") or "Explain observed changes."
+            ev = context.get("evidence") or context.get("evidence_package") or context.get("detect_change")
+            b_img = context.get("before") or context.get("before_image")
+            a_img = context.get("after") or context.get("after_image")
+            cm_img = context.get("change_map")
+
+            if hasattr(rs_vlm_inst, "explain_change"):
+                result = rs_vlm_inst.explain_change(
+                    before_image=b_img,
+                    after_image=a_img,
+                    evidence=ev,
+                    change_map=cm_img,
+                    question=q_text,
+                )
+            elif hasattr(rs_vlm_inst, "generate"):
+                # Legacy / custom generate wrapper
+                imgs = {}
+                if b_img: imgs["before"] = b_img
+                if a_img: imgs["after"] = a_img
+                if cm_img: imgs["change_map"] = cm_img
+                raw_ans = rs_vlm_inst.generate(
+                    question=q_text,
+                    evidence=ev,
+                    images=imgs,
+                )
+                result = {
+                    "answer": raw_ans,
+                    "task": "temporal_change",
+                    "model": getattr(rs_vlm_inst, "model_id", "custom"),
+                    "status": "custom",
+                    "adapter_loaded": False,
+                    "confidence": None,
+                }
+            else:
+                result = {"answer": "RS-VLM execution completed.", "status": "mock", "adapter_loaded": False}
+
+        # =====================================================
         # FALLBACK
         # =====================================================
 
         else:
 
             result = tool()
+
 
         # =====================================================
         # SAVE RESULT
