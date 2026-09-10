@@ -1,0 +1,12 @@
+{
+  "annotation_records": 77232,
+  "annotation_files": 6,
+  "total_annotation_records": 77232,
+  "valid_records": 77232,
+  "missing_images": 0,
+  "invalid_images": 0,
+  "train": 57223,
+  "validation": 10005,
+  "test": 10004,
+  "seed": 42
+}

@@ -99,6 +99,11 @@ def format_with_processor(processor: Any, record: dict[str, Any], max_length: in
     labels[..., :prompt_length] = -100
     if "attention_mask" in result:
         labels[result["attention_mask"] == 0] = -100
+    if not bool((labels != -100).any()):
+        raise ValueError(
+            f"No assistant target tokens remain after truncation for {record['image']}; "
+            f"increase max_length above {max_length}"
+        )
     result["labels"] = labels
     return result
 

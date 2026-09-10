@@ -10,6 +10,14 @@ from typing import Any
 from .dataset import load_records
 
 
+def _resolve_backend_path(path: Path) -> Path:
+    if path.is_absolute() or path.is_file():
+        return path
+    backend_root = Path(__file__).resolve().parents[3]
+    relative_parts = path.parts[1:] if path.parts and path.parts[0].lower() == "backend" else path.parts
+    return backend_root.joinpath(*relative_parts)
+
+
 def adapter_available(adapter_path: Path) -> bool:
     return (adapter_path / "adapter_config.json").is_file() and any(
         (adapter_path / name).is_file()
@@ -24,6 +32,9 @@ def evaluate_manifest(
     limit: int | None = None,
     split: str = "test",
 ) -> dict[str, Any]:
+    manifest = _resolve_backend_path(manifest)
+    if adapter_path is not None:
+        adapter_path = _resolve_backend_path(adapter_path)
     records = load_records(manifest)
     split_records = [record for record in records if record.get("split") == split]
     if split_records:
@@ -38,6 +49,7 @@ def evaluate_manifest(
             "records": len(records),
         }
     try:
+        import torch
         from peft import PeftModel
         from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
         from qwen_vl_utils import process_vision_info
@@ -51,7 +63,9 @@ def evaluate_manifest(
 
     try:
         processor = AutoProcessor.from_pretrained(model_name)
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_name, torch_dtype="auto")
+        dtype = "auto" if torch.cuda.is_available() else torch.float32
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_name, torch_dtype=dtype)
+        model.to("cuda" if torch.cuda.is_available() else "cpu")
         if adapter_path is not None:
             model = PeftModel.from_pretrained(model, str(adapter_path))
         model.eval()
@@ -90,6 +104,7 @@ def evaluate_manifest(
     return {
         "status": "executed",
         "model": model_name,
+        "adapter_loaded": adapter_path is not None,
         "records": len(predictions),
         "exact_match": exact_matches / len(predictions) if predictions else None,
         "predictions": predictions,
@@ -97,14 +112,16 @@ def evaluate_manifest(
 
 
 def compare_base_and_adapter(config: dict[str, Any]) -> dict[str, Any]:
-    adapter_path = Path(config["model"]["adapter_path"])
+    adapter_path = _resolve_backend_path(Path(config["model"]["adapter_path"]))
     model_name = config["model"].get("model_name", config["model"].get("name"))
-    manifest = Path(config["data"].get("manifest_path", config["data"].get("manifest")))
-    base = evaluate_manifest(manifest, model_name)
+    manifest = _resolve_backend_path(Path(config["data"].get("manifest_path", config["data"].get("manifest"))))
+    limit = config["data"].get("max_test_samples")
+    base = evaluate_manifest(manifest, model_name, limit=limit)
     adapted = evaluate_manifest(
         manifest,
         model_name,
         adapter_path,
+        limit=limit,
     )
     return {"base": base, "adapted": adapted, "comparison_status": "not_executed" if adapted["status"] != "executed" else "executed"}
 
@@ -113,13 +130,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--adapter-only", action="store_true")
     args = parser.parse_args()
     try:
         import yaml
     except ImportError as exc:
         raise RuntimeError("Install PyYAML to read the evaluation config") from exc
     config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
-    result = compare_base_and_adapter(config)
+    if args.adapter_only:
+        manifest = Path(config["data"].get("manifest_path", config["data"].get("manifest")))
+        adapter_path = Path(config["model"]["adapter_path"])
+        result = evaluate_manifest(
+            manifest,
+            config["model"].get("model_name", config["model"].get("name")),
+            adapter_path,
+            limit=config["data"].get("max_test_samples"),
+        )
+    else:
+        result = compare_base_and_adapter(config)
     rendered = json.dumps(result, indent=2)
     print(rendered)
     if args.output:

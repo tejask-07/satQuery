@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-VL-3B-Instruct"
-DEFAULT_MANIFEST = Path("backend/data/rs_vlm/manifest.jsonl")
+DEFAULT_MANIFEST = Path(__file__).resolve().parents[3] / "data/rs_vlm/manifest.jsonl"
 REQUIRED_PACKAGES = {
     "torch": "torch",
     "transformers": "transformers",
