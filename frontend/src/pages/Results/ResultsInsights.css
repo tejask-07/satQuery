@@ -106,6 +106,25 @@
   letter-spacing: -0.8px;
 }
 
+.results-empty-state {
+  padding: 48px 24px;
+  margin-top: 32px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-align: center;
+}
+
+.results-empty-state p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.results-empty-state .download-report-button {
+  width: 240px;
+  margin: 0 auto;
+}
+
 .results-header-meta {
   text-align: right;
   font-family: "JetBrains Mono", monospace;
@@ -451,90 +470,6 @@
 }
 
 
-/* =========================================================
-   TEMPORARY EVIDENCE VISUALS
-   ========================================================= */
-
-.evidence-ndvi-difference {
-  background:
-    radial-gradient(
-      circle at 30% 35%,
-      #e78b2f 0 12%,
-      transparent 13%
-    ),
-    radial-gradient(
-      circle at 62% 58%,
-      #b73a29 0 17%,
-      transparent 18%
-    ),
-    radial-gradient(
-      circle at 40% 72%,
-      #4c7134 0 19%,
-      transparent 20%
-    ),
-    #555342;
-}
-
-.evidence-ndvi-2021 {
-  background:
-    radial-gradient(
-      circle at 32% 30%,
-      #83b34e 0 14%,
-      transparent 15%
-    ),
-    radial-gradient(
-      circle at 52% 48%,
-      #4f813b 0 20%,
-      transparent 21%
-    ),
-    radial-gradient(
-      circle at 72% 60%,
-      #356832 0 25%,
-      transparent 26%
-    ),
-    #234a2b;
-}
-
-.evidence-ndvi-2025 {
-  background:
-    radial-gradient(
-      circle at 30% 52%,
-      #719e45 0 17%,
-      transparent 18%
-    ),
-    radial-gradient(
-      circle at 55% 72%,
-      #174d28 0 20%,
-      transparent 21%
-    ),
-    radial-gradient(
-      circle at 72% 35%,
-      #47793b 0 24%,
-      transparent 25%
-    ),
-    #21492b;
-}
-
-.evidence-ndbi {
-  background:
-    radial-gradient(
-      circle at 30% 35%,
-      #8f8976 0 17%,
-      transparent 18%
-    ),
-    radial-gradient(
-      circle at 47% 70%,
-      #aaa38e 0 12%,
-      transparent 13%
-    ),
-    radial-gradient(
-      circle at 70% 55%,
-      #3d3b38 0 23%,
-      transparent 24%
-    ),
-    #514e47;
-}
-
 .evidence-label {
   margin-top: 7px;
 
@@ -789,6 +724,23 @@
 }
 
 .interpretation-section p:last-child {
+  margin-bottom: 0;
+}
+
+.interpretation-question,
+.interpretation-meta {
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.interpretation-meta {
+  margin-top: 14px;
   margin-bottom: 0;
 }
 
