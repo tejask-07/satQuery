@@ -141,19 +141,6 @@
   border-bottom: 1px solid var(--soft-line);
 }
 
-.aoi-page-number {
-  margin-bottom: 10px;
-
-  font-family:
-    "Lexend Deca",
-    "Lexend",
-    sans-serif;
-
-  font-size: 16px;
-  font-weight: 600;
-
-  line-height: 1;
-}
 
 .aoi-intro h1 {
   margin: 0;
@@ -1135,4 +1122,56 @@
   .aoi-intro p {
     margin-top: 18px;
   }
+}
+
+/* =========================================================
+   AOI — RECTANGLE ONLY
+   ========================================================= */
+
+.aoi-drawing-buttons {
+  grid-template-columns: 1fr;
+}
+
+.aoi-drawing-button {
+  width: 100%;
+  min-width: 0;
+}
+
+.aoi-drawing-button.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+
+/* =========================================================
+   AOI — LIVE DRAWING STATE
+   ========================================================= */
+
+.aoi-map-panel {
+  position: relative;
+}
+
+.aoi-map [data-satquery-aoi-drawing="true"] {
+  cursor: crosshair;
+}
+
+
+/* =========================================================
+   AOI — INFORMATION TRANSITION
+   ========================================================= */
+
+.aoi-info-stat strong {
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+
+/* =========================================================
+   AOI — LIVE DRAWING HELP
+   ========================================================= */
+
+.aoi-section .aoi-help-text {
+  min-height: 27px;
 }

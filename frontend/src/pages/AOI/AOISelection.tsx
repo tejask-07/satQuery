@@ -11,7 +11,6 @@ import {
   MapContainer,
   TileLayer,
   Polygon,
-  Circle,
   CircleMarker,
   ScaleControl,
   useMap,
@@ -22,24 +21,15 @@ import { LatLngBounds } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./AOISelection.css";
 
+
 /* =========================================================
    TYPES
    ========================================================= */
 
-export type AOIGeometry =
-  | {
-      type: "polygon";
-      coordinates: [number, number][];
-    }
-  | {
-      type: "rectangle";
-      coordinates: [number, number][];
-    }
-  | {
-      type: "circle";
-      center: [number, number];
-      radius: number;
-    };
+export type AOIGeometry = {
+  type: "rectangle";
+  coordinates: [number, number][];
+};
 
 export interface AOIMetadata {
   name: string;
@@ -65,24 +55,22 @@ export interface AOISelectionProps {
   ) => void;
 }
 
+
 /* =========================================================
-   DRAWING TYPES
+   DRAWING STATE
    ========================================================= */
 
-type DrawingMode =
-  | "polygon"
-  | "rectangle"
-  | "circle";
-
 interface DrawingState {
-  points: [number, number][];
-  previewPoint: [number, number] | null;
-  circleRadius: number;
+  startPoint: [number, number] | null;
+  currentPoint: [number, number] | null;
 }
 
-interface DrawingInteractionProps {
-  mode: DrawingMode;
 
+/* =========================================================
+   DRAWING ENGINE
+   ========================================================= */
+
+interface DrawingInteractionProps {
   drawingState: DrawingState;
 
   setDrawingState: Dispatch<
@@ -94,46 +82,48 @@ interface DrawingInteractionProps {
   ) => void;
 }
 
-/* =========================================================
-   DRAWING ENGINE
-   ========================================================= */
 
 function DrawingInteraction({
-  mode,
   drawingState,
   setDrawingState,
   onComplete,
 }: DrawingInteractionProps) {
+
   const map = useMap();
 
-  const modeRef = useRef(mode);
-  const stateRef = useRef(drawingState);
-  const completeRef = useRef(onComplete);
+  const stateRef =
+    useRef(drawingState);
+
+  const completeRef =
+    useRef(onComplete);
+
+  const isDrawingRef =
+    useRef(false);
+
 
   useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
-
-  useEffect(() => {
-    stateRef.current = drawingState;
+    stateRef.current =
+      drawingState;
   }, [drawingState]);
 
+
   useEffect(() => {
-    completeRef.current = onComplete;
+    completeRef.current =
+      onComplete;
   }, [onComplete]);
 
+
   useEffect(() => {
-    const mapContainer = map.getContainer();
+
+    const mapContainer =
+      map.getContainer();
 
     /*
-     * Create a real DOM drawing surface above the Leaflet layers.
-     *
-     * This deliberately does NOT depend on Leaflet's click
-     * event propagation. The overlay receives the pointer events
-     * directly, converts them to map coordinates, and updates
-     * React state.
+     * Transparent drawing surface above
+     * the satellite imagery.
      */
-    const overlay = document.createElement("div");
+    const overlay =
+      document.createElement("div");
 
     overlay.setAttribute(
       "data-satquery-aoi-drawing",
@@ -153,11 +143,19 @@ function DrawingInteraction({
       }
     );
 
-    mapContainer.appendChild(overlay);
+    mapContainer.appendChild(
+      overlay
+    );
+
+
+    /* -------------------------------------------------------
+       MAP COORDINATE
+       ------------------------------------------------------- */
 
     const getPoint = (
-      event: MouseEvent
+      event: MouseEvent | PointerEvent
     ): [number, number] => {
+
       const rect =
         mapContainer.getBoundingClientRect();
 
@@ -179,6 +177,11 @@ function DrawingInteraction({
       ];
     };
 
+
+    /* -------------------------------------------------------
+       UPDATE STATE
+       ------------------------------------------------------- */
+
     const updateState = (
       next:
         | DrawingState
@@ -186,6 +189,7 @@ function DrawingInteraction({
             current: DrawingState
           ) => DrawingState)
     ) => {
+
       const current =
         stateRef.current;
 
@@ -202,14 +206,15 @@ function DrawingInteraction({
       );
     };
 
-    let lastPolygonClickTime = 0;
+
+    /* -------------------------------------------------------
+       POINTER DOWN
+       ------------------------------------------------------- */
 
     const handlePointerDown = (
       event: PointerEvent
     ) => {
-      /*
-       * Only primary mouse / touch pointer.
-       */
+
       if (
         event.button !== 0 &&
         event.pointerType !== "touch"
@@ -220,330 +225,180 @@ function DrawingInteraction({
       event.preventDefault();
       event.stopPropagation();
 
-      const currentMode =
-        modeRef.current;
-
-      const currentState =
-        stateRef.current;
-
       const point =
         getPoint(event);
 
+
       /*
-       * =========================================================
-       * RECTANGLE
-       * =========================================================
+       * Start a new rectangle.
        */
-
       if (
-        currentMode ===
-        "rectangle"
+        !isDrawingRef.current
       ) {
-        if (
-          currentState.points.length === 0
-        ) {
-          updateState({
-            points: [point],
-            previewPoint: point,
-            circleRadius: 0,
-          });
 
-          return;
-        }
+        isDrawingRef.current =
+          true;
 
-        const start =
-          currentState.points[0];
-
-        const coordinates:
-          [number, number][] = [
-            start,
-            [
-              start[0],
-              point[1],
-            ],
-            point,
-            [
-              point[0],
-              start[1],
-            ],
-          ];
-
-        completeRef.current({
-          type: "rectangle",
-          coordinates,
+        updateState({
+          startPoint: point,
+          currentPoint: point,
         });
 
         return;
-      }
-
-      /*
-       * =========================================================
-       * CIRCLE
-       * =========================================================
-       */
-
-      if (
-        currentMode ===
-        "circle"
-      ) {
-        if (
-          currentState.points.length === 0
-        ) {
-          updateState({
-            points: [point],
-            previewPoint: point,
-            circleRadius: 0,
-          });
-
-          return;
-        }
-
-        const center =
-          currentState.points[0];
-
-        const radius =
-          haversineDistance(
-            center,
-            point
-          );
-
-        completeRef.current({
-          type: "circle",
-          center,
-          radius,
-        });
-
-        return;
-      }
-
-      /*
-       * =========================================================
-       * POLYGON
-       * =========================================================
-       */
-
-      if (
-        currentMode ===
-        "polygon"
-      ) {
-        /*
-         * A browser double-click produces two pointerdown
-         * events. Ignore the second one so the finishing
-         * double-click does not add a duplicate point.
-         */
-        const now =
-          Date.now();
-
-        if (
-          now -
-            lastPolygonClickTime <
-          250
-        ) {
-          return;
-        }
-
-        lastPolygonClickTime =
-          now;
-
-        updateState(
-          (current) => ({
-            ...current,
-            points: [
-              ...current.points,
-              point,
-            ],
-            previewPoint: point,
-          })
-        );
       }
     };
 
-    const handleDoubleClick = (
-      event: MouseEvent
+
+    /* -------------------------------------------------------
+       POINTER MOVE
+       ------------------------------------------------------- */
+
+    const handlePointerMove = (
+      event: PointerEvent
     ) => {
+
       if (
-        modeRef.current !==
-        "polygon"
+        !isDrawingRef.current
       ) {
         return;
       }
 
       event.preventDefault();
-      event.stopPropagation();
-
-      const currentState =
-        stateRef.current;
-
-      if (
-        currentState.points.length <
-        3
-      ) {
-        return;
-      }
-
-      completeRef.current({
-        type: "polygon",
-        coordinates: [
-          ...currentState.points,
-        ],
-      });
-    };
-
-    const handleContextMenu = (
-      event: MouseEvent
-    ) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const currentMode =
-        modeRef.current;
-
-      const currentState =
-        stateRef.current;
 
       const point =
         getPoint(event);
-
-      /*
-       * Right-click finishes a polygon.
-       */
-      if (
-        currentMode ===
-          "polygon" &&
-        currentState.points.length >=
-          3
-      ) {
-        completeRef.current({
-          type: "polygon",
-          coordinates: [
-            ...currentState.points,
-          ],
-        });
-
-        return;
-      }
-
-      /*
-       * Right-click can also complete a
-       * rectangle after its first point.
-       */
-      if (
-        currentMode ===
-          "rectangle" &&
-        currentState.points.length ===
-          1
-      ) {
-        const start =
-          currentState.points[0];
-
-        const coordinates:
-          [number, number][] = [
-            start,
-            [
-              start[0],
-              point[1],
-            ],
-            point,
-            [
-              point[0],
-              start[1],
-            ],
-          ];
-
-        completeRef.current({
-          type: "rectangle",
-          coordinates,
-        });
-
-        return;
-      }
-
-      /*
-       * Right-click can also complete a
-       * circle after its center.
-       */
-      if (
-        currentMode ===
-          "circle" &&
-        currentState.points.length ===
-          1
-      ) {
-        const center =
-          currentState.points[0];
-
-        const radius =
-          haversineDistance(
-            center,
-            point
-          );
-
-        completeRef.current({
-          type: "circle",
-          center,
-          radius,
-        });
-      }
-    };
-
-    const handleMouseMove = (
-      event: MouseEvent
-    ) => {
-      const currentMode =
-        modeRef.current;
-
-      const currentState =
-        stateRef.current;
-
-      if (
-        currentState.points.length ===
-        0
-      ) {
-        return;
-      }
-
-      if (
-        currentMode !==
-          "rectangle" &&
-        currentMode !==
-          "circle"
-      ) {
-        return;
-      }
-
-      const point =
-        getPoint(event);
-
-      if (
-        currentMode ===
-        "rectangle"
-      ) {
-        updateState(
-          (current) => ({
-            ...current,
-            previewPoint: point,
-          })
-        );
-
-        return;
-      }
-
-      const center =
-        currentState.points[0];
-
-      const radius =
-        haversineDistance(
-          center,
-          point
-        );
 
       updateState(
         (current) => ({
           ...current,
-          previewPoint: point,
-          circleRadius: radius,
+          currentPoint: point,
         })
       );
     };
+
+
+    /* -------------------------------------------------------
+       POINTER UP
+       ------------------------------------------------------- */
+
+    const handlePointerUp = (
+      event: PointerEvent
+    ) => {
+
+      if (
+        !isDrawingRef.current
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const point =
+        getPoint(event);
+
+      const start =
+        stateRef.current.startPoint;
+
+      if (!start) {
+        isDrawingRef.current =
+          false;
+
+        return;
+      }
+
+
+      /*
+       * Create the rectangle.
+       */
+      const coordinates:
+        [number, number][] = [
+          start,
+
+          [
+            start[0],
+            point[1],
+          ],
+
+          point,
+
+          [
+            point[0],
+            start[1],
+          ],
+        ];
+
+
+      /*
+       * Ignore extremely tiny accidental
+       * clicks instead of creating a tiny AOI.
+       */
+      const width =
+        haversineDistance(
+          start,
+          [
+            start[0],
+            point[1],
+          ]
+        );
+
+      const height =
+        haversineDistance(
+          start,
+          [
+            point[0],
+            start[1],
+          ]
+        );
+
+
+      isDrawingRef.current =
+        false;
+
+
+      if (
+        width < 20 ||
+        height < 20
+      ) {
+
+        updateState({
+          startPoint: null,
+          currentPoint: null,
+        });
+
+        return;
+      }
+
+
+      completeRef.current({
+        type: "rectangle",
+        coordinates,
+      });
+
+
+      updateState({
+        startPoint: null,
+        currentPoint: null,
+      });
+    };
+
+
+    /* -------------------------------------------------------
+       CONTEXT MENU
+       ------------------------------------------------------- */
+
+    const handleContextMenu = (
+      event: MouseEvent
+    ) => {
+
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+
+    /* -------------------------------------------------------
+       EVENTS
+       ------------------------------------------------------- */
 
     overlay.addEventListener(
       "pointerdown",
@@ -551,8 +406,18 @@ function DrawingInteraction({
     );
 
     overlay.addEventListener(
-      "dblclick",
-      handleDoubleClick
+      "pointermove",
+      handlePointerMove
+    );
+
+    overlay.addEventListener(
+      "pointerup",
+      handlePointerUp
+    );
+
+    overlay.addEventListener(
+      "pointercancel",
+      handlePointerUp
     );
 
     overlay.addEventListener(
@@ -560,26 +425,38 @@ function DrawingInteraction({
       handleContextMenu
     );
 
-    overlay.addEventListener(
-      "mousemove",
-      handleMouseMove
-    );
 
     /*
-     * While drawing, normal map dragging would fight
-     * with the drawing interaction.
+     * Normal map dragging would conflict
+     * with rectangle drawing.
      */
     map.dragging.disable();
 
+
+    /* -------------------------------------------------------
+       CLEANUP
+       ------------------------------------------------------- */
+
     return () => {
+
       overlay.removeEventListener(
         "pointerdown",
         handlePointerDown
       );
 
       overlay.removeEventListener(
-        "dblclick",
-        handleDoubleClick
+        "pointermove",
+        handlePointerMove
+      );
+
+      overlay.removeEventListener(
+        "pointerup",
+        handlePointerUp
+      );
+
+      overlay.removeEventListener(
+        "pointercancel",
+        handlePointerUp
       );
 
       overlay.removeEventListener(
@@ -587,10 +464,6 @@ function DrawingInteraction({
         handleContextMenu
       );
 
-      overlay.removeEventListener(
-        "mousemove",
-        handleMouseMove
-      );
 
       if (
         overlay.parentNode ===
@@ -601,12 +474,19 @@ function DrawingInteraction({
         );
       }
 
+
       map.dragging.enable();
     };
-  }, [map, setDrawingState]);
+
+  }, [
+    map,
+    setDrawingState,
+  ]);
+
 
   return null;
 }
+
 
 /* =========================================================
    MAP VIEW CONTROLLER
@@ -616,81 +496,54 @@ function AOIMapController({
   selectedAOI,
   targetLocation,
 }: {
-  selectedAOI: AOIGeometry | null;
-  targetLocation?: { center: [number, number]; zoom: number } | null;
+  selectedAOI:
+    AOIGeometry | null;
+
+  targetLocation?: {
+    center: [number, number];
+    zoom: number;
+  } | null;
 }) {
-  const map = useMap();
 
+  const map =
+    useMap();
+
+
+  /*
+   * Search location navigation.
+   */
   useEffect(() => {
-    if (targetLocation && !selectedAOI) {
-      map.setView(targetLocation.center, targetLocation.zoom, { animate: true });
+
+    if (
+      targetLocation &&
+      !selectedAOI
+    ) {
+
+      map.setView(
+        targetLocation.center,
+        targetLocation.zoom,
+        {
+          animate: true,
+        }
+      );
     }
-  }, [map, targetLocation, selectedAOI]);
 
+  }, [
+    map,
+    targetLocation,
+    selectedAOI,
+  ]);
+
+
+  /*
+   * Fit the map around the selected AOI.
+   */
   useEffect(() => {
+
     if (!selectedAOI) {
       return;
     }
 
-    /*
-     * CIRCLE
-     */
-    if (
-      selectedAOI.type ===
-      "circle"
-    ) {
-      const latDelta =
-        selectedAOI.radius /
-        111320;
-
-      const cosLatitude =
-        Math.cos(
-          (selectedAOI.center[0] *
-            Math.PI) /
-            180
-        );
-
-      const lngDelta =
-        selectedAOI.radius /
-        (111320 *
-          cosLatitude);
-
-      const bounds =
-        new LatLngBounds(
-          [
-            selectedAOI.center[0] -
-              latDelta,
-
-            selectedAOI.center[1] -
-              lngDelta,
-          ],
-
-          [
-            selectedAOI.center[0] +
-              latDelta,
-
-            selectedAOI.center[1] +
-              lngDelta,
-          ]
-        );
-
-      map.fitBounds(
-        bounds,
-        {
-          padding: [
-            60,
-            60,
-          ],
-          maxZoom: 13,
-        }
-      );
-
-      return;
-    }
-
-    /*
-     * RECTANGLE / POLYGON
-     */
     const bounds =
       new LatLngBounds(
         selectedAOI.coordinates
@@ -706,13 +559,16 @@ function AOIMapController({
         maxZoom: 13,
       }
     );
+
   }, [
     map,
     selectedAOI,
   ]);
 
+
   return null;
 }
+
 
 /* =========================================================
    GEOMETRY HELPERS
@@ -722,6 +578,7 @@ function haversineDistance(
   first: [number, number],
   second: [number, number]
 ): number {
+
   const earthRadius =
     6371000;
 
@@ -767,13 +624,16 @@ function haversineDistance(
   );
 }
 
+
 /* =========================================================
-   POLYGON AREA
+   RECTANGLE AREA
    ========================================================= */
 
 function polygonArea(
-  coordinates: [number, number][]
+  coordinates:
+    [number, number][]
 ): number {
+
   if (
     coordinates.length < 3
   ) {
@@ -801,7 +661,7 @@ function polygonArea(
     Math.cos(
       (meanLat *
         Math.PI) /
-        180
+      180
     );
 
   let area = 0;
@@ -812,13 +672,14 @@ function polygonArea(
     coordinates.length;
     index++
   ) {
+
     const current =
       coordinates[index];
 
     const next =
       coordinates[
         (index + 1) %
-          coordinates.length
+        coordinates.length
       ];
 
     const x1 =
@@ -847,13 +708,16 @@ function polygonArea(
   );
 }
 
+
 /* =========================================================
-   POLYGON PERIMETER
+   RECTANGLE PERIMETER
    ========================================================= */
 
 function polygonPerimeter(
-  coordinates: [number, number][]
+  coordinates:
+    [number, number][]
 ): number {
+
   if (
     coordinates.length < 2
   ) {
@@ -868,13 +732,14 @@ function polygonPerimeter(
     coordinates.length;
     index++
   ) {
+
     const current =
       coordinates[index];
 
     const next =
       coordinates[
         (index + 1) %
-          coordinates.length
+        coordinates.length
       ];
 
     perimeter +=
@@ -887,13 +752,16 @@ function polygonPerimeter(
   return perimeter;
 }
 
+
 /* =========================================================
-   CENTROID
+   RECTANGLE CENTER
    ========================================================= */
 
-function polygonCentroid(
-  coordinates: [number, number][]
+function rectangleCenter(
+  coordinates:
+    [number, number][]
 ): [number, number] {
+
   if (
     coordinates.length === 0
   ) {
@@ -922,6 +790,7 @@ function polygonCentroid(
   ];
 }
 
+
 /* =========================================================
    FORMATTERS
    ========================================================= */
@@ -930,6 +799,7 @@ function formatNumber(
   value: number,
   decimals = 2
 ) {
+
   return value.toLocaleString(
     "en-IN",
     {
@@ -942,12 +812,15 @@ function formatNumber(
   );
 }
 
+
 function formatDistance(
   meters: number
 ) {
+
   if (
     meters >= 1000
   ) {
+
     return `${formatNumber(
       meters / 1000
     )} km`;
@@ -958,11 +831,13 @@ function formatDistance(
   )} m`;
 }
 
+
 function formatCoordinate(
   value: number,
   positive: string,
   negative: string
 ) {
+
   return `${Math.abs(
     value
   ).toFixed(4)}° ${
@@ -971,6 +846,7 @@ function formatCoordinate(
       : negative
   }`;
 }
+
 
 /* =========================================================
    MAIN COMPONENT
@@ -982,6 +858,8 @@ function AOISelection({
   onAOIChange,
   onRunAnalysis,
 }: AOISelectionProps) {
+
+
   /* =======================================================
      QUERY
      ======================================================= */
@@ -993,33 +871,112 @@ function AOISelection({
     initialQuery
   );
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [targetLocation, setTargetLocation] = useState<{
+
+  /* =======================================================
+     SEARCH
+     ======================================================= */
+
+  const [
+    searchQuery,
+    setSearchQuery,
+  ] = useState("");
+
+
+  const [
+    targetLocation,
+    setTargetLocation,
+  ] = useState<{
     center: [number, number];
     zoom: number;
   } | null>(null);
 
-  const LOCATION_PRESETS: Record<
-    string,
-    { center: [number, number]; zoom: number }
-  > = {
-    mumbai: { center: [19.076, 72.8777], zoom: 11 },
-    california: { center: [36.7783, -119.4179], zoom: 7 },
-    amazon: { center: [-3.4653, -62.2159], zoom: 7 },
-    delhi: { center: [28.6139, 77.209], zoom: 11 },
-    bangalore: { center: [12.9716, 77.5946], zoom: 11 },
-  };
 
-  const handleSearchChange = (val: string) => {
-    setSearchQuery(val);
-    const key = val.toLowerCase().trim();
-    for (const [k, v] of Object.entries(LOCATION_PRESETS)) {
-      if (key.includes(k)) {
-        setTargetLocation(v);
+  const LOCATION_PRESETS:
+    Record<
+      string,
+      {
+        center: [number, number];
+        zoom: number;
+      }
+    > = {
+
+      mumbai: {
+        center: [
+          19.076,
+          72.8777,
+        ],
+        zoom: 11,
+      },
+
+      california: {
+        center: [
+          36.7783,
+          -119.4179,
+        ],
+        zoom: 7,
+      },
+
+      amazon: {
+        center: [
+          -3.4653,
+          -62.2159,
+        ],
+        zoom: 7,
+      },
+
+      delhi: {
+        center: [
+          28.6139,
+          77.209,
+        ],
+        zoom: 11,
+      },
+
+      bangalore: {
+        center: [
+          12.9716,
+          77.5946,
+        ],
+        zoom: 11,
+      },
+    };
+
+
+  const handleSearchChange = (
+    value: string
+  ) => {
+
+    setSearchQuery(
+      value
+    );
+
+    const key =
+      value
+        .toLowerCase()
+        .trim();
+
+    for (
+      const [
+        preset,
+        location,
+      ] of Object.entries(
+        LOCATION_PRESETS
+      )
+    ) {
+
+      if (
+        key.includes(preset)
+      ) {
+
+        setTargetLocation(
+          location
+        );
+
         break;
       }
     }
   };
+
 
   /* =======================================================
      DATES
@@ -1032,6 +989,7 @@ function AOISelection({
     "2021-04-17"
   );
 
+
   const [
     endDate,
     setEndDate,
@@ -1039,25 +997,19 @@ function AOISelection({
     "2025-04-17"
   );
 
-  /* =======================================================
-     DRAWING MODE
-     ======================================================= */
 
-  const [
-    drawingMode,
-    setDrawingMode,
-  ] = useState<DrawingMode>(
-    "polygon"
-  );
+  /* =======================================================
+     DRAWING
+     ======================================================= */
 
   const [
     drawingState,
     setDrawingState,
   ] = useState<DrawingState>({
-    points: [],
-    previewPoint: null,
-    circleRadius: 0,
+    startPoint: null,
+    currentPoint: null,
   });
+
 
   /* =======================================================
      SELECTED AOI
@@ -1066,9 +1018,10 @@ function AOISelection({
   const [
     selectedAOI,
     setSelectedAOI,
-  ] = useState<AOIGeometry | null>(
-    null
-  );
+  ] = useState<
+    AOIGeometry | null
+  >(null);
+
 
   /* =======================================================
      COMPLETE AOI
@@ -1077,218 +1030,172 @@ function AOISelection({
   const handleAOIComplete = (
     aoi: AOIGeometry
   ) => {
-    /*
-     * THIS is the point where the preview becomes
-     * an actual selected AOI.
-     */
-    setSelectedAOI(aoi);
 
-    /*
-     * Remove drawing state.
-     */
+    setSelectedAOI(
+      aoi
+    );
+
     setDrawingState({
-      points: [],
-      previewPoint: null,
-      circleRadius: 0,
+      startPoint: null,
+      currentPoint: null,
     });
 
-    /*
-     * Tell parent component.
-     */
-    onAOIChange?.(aoi);
+    onAOIChange?.(
+      aoi
+    );
   };
+
 
   /* =======================================================
      CLEAR AOI
      ======================================================= */
 
   const clearAOI = () => {
-    setSelectedAOI(null);
+
+    setSelectedAOI(
+      null
+    );
 
     setDrawingState({
-      points: [],
-      previewPoint: null,
-      circleRadius: 0,
+      startPoint: null,
+      currentPoint: null,
     });
 
-    onAOIChange?.(null);
+    onAOIChange?.(
+      null
+    );
   };
 
-  /* =======================================================
-     CHANGE DRAWING MODE
-     ======================================================= */
-
-  const changeMode = (
-    mode: DrawingMode
-  ) => {
-    setDrawingMode(mode);
-
-    /*
-     * Starting a new shape always clears unfinished
-     * drawing state.
-     */
-    setDrawingState({
-      points: [],
-      previewPoint: null,
-      circleRadius: 0,
-    });
-  };
-
-  /* =======================================================
-     GEOMETRY INFORMATION
-     ======================================================= */
-
-  const geometryInfo =
-    useMemo(() => {
-      if (!selectedAOI) {
-        return null;
-      }
-
-      /*
-       * CIRCLE
-       */
-      if (
-        selectedAOI.type ===
-        "circle"
-      ) {
-        const area =
-          Math.PI *
-          selectedAOI.radius **
-            2;
-
-        const perimeter =
-          2 *
-          Math.PI *
-          selectedAOI.radius;
-
-        return {
-          area,
-          perimeter,
-          center:
-            selectedAOI.center,
-          type:
-            "Circle" as const,
-        };
-      }
-
-      /*
-       * RECTANGLE / POLYGON
-       */
-      const coordinates =
-        selectedAOI.coordinates;
-
-      return {
-        area:
-          polygonArea(
-            coordinates
-          ),
-
-        perimeter:
-          polygonPerimeter(
-            coordinates
-          ),
-
-        center:
-          polygonCentroid(
-            coordinates
-          ),
-
-        type:
-          selectedAOI.type ===
-          "rectangle"
-            ? ("Rectangle" as const)
-            : ("Polygon" as const),
-      };
-    }, [
-      selectedAOI,
-    ]);
 
   /* =======================================================
      PREVIEW RECTANGLE
      ======================================================= */
 
   const previewRectangle =
-    drawingMode ===
-      "rectangle" &&
-    drawingState.points
-      .length === 1 &&
-    drawingState.previewPoint
+    drawingState.startPoint &&
+    drawingState.currentPoint
       ? [
-          drawingState.points[0],
+          drawingState.startPoint,
 
           [
-            drawingState.points[0][0],
-            drawingState.previewPoint[1],
+            drawingState.startPoint[0],
+            drawingState.currentPoint[1],
           ],
 
-          drawingState.previewPoint,
+          drawingState.currentPoint,
 
           [
-            drawingState.previewPoint[0],
-            drawingState.points[0][1],
+            drawingState.currentPoint[0],
+            drawingState.startPoint[1],
           ],
         ] as [number, number][]
       : null;
 
+
   /* =======================================================
-     PREVIEW CIRCLE
+     DISPLAY GEOMETRY
+     
+     Important:
+     While dragging, the preview rectangle is treated
+     as the active geometry so the information panel
+     updates continuously.
      ======================================================= */
 
-  const previewCircle =
-    drawingMode ===
-      "circle" &&
-    drawingState.points
-      .length === 1
-      ? {
-          center:
-            drawingState.points[0],
+  const displayGeometry =
+    previewRectangle ||
+    selectedAOI?.coordinates ||
+    null;
 
-          radius:
-            drawingState.circleRadius,
-        }
-      : null;
+
+  /* =======================================================
+     LIVE GEOMETRY INFORMATION
+     ======================================================= */
+
+  const geometryInfo =
+    useMemo(() => {
+
+      if (
+        !displayGeometry ||
+        displayGeometry.length < 3
+      ) {
+        return null;
+      }
+
+      return {
+        area:
+          polygonArea(
+            displayGeometry
+          ),
+
+        perimeter:
+          polygonPerimeter(
+            displayGeometry
+          ),
+
+        center:
+          rectangleCenter(
+            displayGeometry
+          ),
+
+        type:
+          "Rectangle" as const,
+
+        isDrawing:
+          Boolean(
+            previewRectangle
+          ),
+      };
+
+    }, [
+      displayGeometry,
+      previewRectangle,
+    ]);
+
 
   /* =======================================================
      AOI METADATA
      ======================================================= */
 
   const aoiMetadata =
-    useMemo<AOIMetadata | null>(
-      () => {
-        if (
-          !selectedAOI ||
-          !geometryInfo
-        ) {
-          return null;
-        }
+    useMemo<
+      AOIMetadata | null
+    >(() => {
 
-        return {
-          name:
-            `Custom ${geometryInfo.type}`,
+      if (
+        !selectedAOI ||
+        !geometryInfo
+      ) {
+        return null;
+      }
 
-          geometry:
-            selectedAOI,
+      return {
 
-          center:
-            geometryInfo.center,
+        name:
+          "Custom Rectangle",
 
-          area:
-            `${formatNumber(
-              geometryInfo.area /
-                1_000_000
-            )} km²`,
+        geometry:
+          selectedAOI,
 
-          perimeter:
-            formatDistance(
-              geometryInfo.perimeter
-            ),
-        };
-      },
-      [
-        selectedAOI,
-        geometryInfo,
-      ]
-    );
+        center:
+          geometryInfo.center,
+
+        area:
+          `${formatNumber(
+            geometryInfo.area /
+              1_000_000
+          )} km²`,
+
+        perimeter:
+          formatDistance(
+            geometryInfo.perimeter
+          ),
+      };
+
+    }, [
+      selectedAOI,
+      geometryInfo,
+    ]);
+
 
   /* =======================================================
      RUN ANALYSIS
@@ -1296,10 +1203,10 @@ function AOISelection({
 
   const handleRunAnalysis =
     () => {
+
       if (
         loading ||
         !selectedAOI ||
-        !geometryInfo ||
         !aoiMetadata ||
         !query.trim()
       ) {
@@ -1314,6 +1221,7 @@ function AOISelection({
       );
     };
 
+
   /* =======================================================
      DATE PRESETS
      ======================================================= */
@@ -1322,20 +1230,28 @@ function AOISelection({
     start: string,
     end: string
   ) => {
-    setStartDate(start);
-    setEndDate(end);
+
+    setStartDate(
+      start
+    );
+
+    setEndDate(
+      end
+    );
   };
+
 
   /* =======================================================
      RENDER
      ======================================================= */
 
   return (
+
     <main className="aoi-page">
 
-      {/* ===================================================
+      {/* =================================================
           HEADER
-          =================================================== */}
+          ================================================= */}
 
       <header className="aoi-header">
 
@@ -1354,11 +1270,12 @@ function AOISelection({
       </header>
 
 
-      {/* ===================================================
+      {/* =================================================
           MAIN LAYOUT
-          =================================================== */}
+          ================================================= */}
 
       <section className="aoi-layout">
+
 
         {/* =================================================
             LEFT SIDEBAR
@@ -1366,15 +1283,12 @@ function AOISelection({
 
         <aside className="aoi-sidebar">
 
+
           {/* =================================================
               INTRO
               ================================================= */}
 
           <div className="aoi-intro">
-
-            <div className="aoi-page-number">
-              01.
-            </div>
 
             <h1>
               DEFINE YOUR
@@ -1412,7 +1326,9 @@ function AOISelection({
                 placeholder="Search for a city, region, or place..."
                 value={searchQuery}
                 onChange={(event) =>
-                  handleSearchChange(event.target.value)
+                  handleSearchChange(
+                    event.target.value
+                  )
                 }
               />
 
@@ -1427,7 +1343,7 @@ function AOISelection({
 
 
           {/* =================================================
-              DRAW
+              DRAW AREA
               ================================================= */}
 
           <section className="aoi-section">
@@ -1440,41 +1356,13 @@ function AOISelection({
 
               <button
                 type="button"
-                className={
-                  drawingMode ===
-                  "polygon"
-                    ? "aoi-drawing-button active"
-                    : "aoi-drawing-button"
-                }
-                onClick={() =>
-                  changeMode(
-                    "polygon"
-                  )
-                }
-              >
-
-                <span className="draw-icon polygon-icon">
-                  ◇
-                </span>
-
-                Polygon
-
-              </button>
-
-
-              <button
-                type="button"
-                className={
-                  drawingMode ===
-                  "rectangle"
-                    ? "aoi-drawing-button active"
-                    : "aoi-drawing-button"
-                }
-                onClick={() =>
-                  changeMode(
-                    "rectangle"
-                  )
-                }
+                className="aoi-drawing-button active"
+                onClick={() => {
+                  setDrawingState({
+                    startPoint: null,
+                    currentPoint: null,
+                  });
+                }}
               >
 
                 <span className="draw-icon">
@@ -1485,46 +1373,13 @@ function AOISelection({
 
               </button>
 
-
-              <button
-                type="button"
-                className={
-                  drawingMode ===
-                  "circle"
-                    ? "aoi-drawing-button active"
-                    : "aoi-drawing-button"
-                }
-                onClick={() =>
-                  changeMode(
-                    "circle"
-                  )
-                }
-              >
-
-                <span className="draw-icon">
-                  ○
-                </span>
-
-                Circle
-
-              </button>
-
             </div>
-
 
             <div className="aoi-help-text">
 
-              {drawingMode ===
-                "polygon" &&
-                "Click points on the map. Double click or right click to finish."}
-
-              {drawingMode ===
-                "rectangle" &&
-                "Click one corner, then click the opposite corner."}
-
-              {drawingMode ===
-                "circle" &&
-                "Click the center, then click to set the radius."}
+              {drawingState.startPoint
+                ? "Release the mouse to confirm the area."
+                : "Click and drag on the map to define your area."}
 
             </div>
 
@@ -1553,9 +1408,7 @@ function AOISelection({
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(
-                    event
-                  ) =>
+                  onChange={(event) =>
                     setStartDate(
                       event.target.value
                     )
@@ -1574,9 +1427,7 @@ function AOISelection({
                 <input
                   type="date"
                   value={endDate}
-                  onChange={(
-                    event
-                  ) =>
+                  onChange={(event) =>
                     setEndDate(
                       event.target.value
                     )
@@ -1688,6 +1539,7 @@ function AOISelection({
               ================================================= */}
 
           {selectedAOI && (
+
             <button
               type="button"
               className="aoi-clear-button"
@@ -1697,6 +1549,7 @@ function AOISelection({
             >
               CLEAR AREA
             </button>
+
           )}
 
         </aside>
@@ -1738,15 +1591,14 @@ function AOISelection({
                 ================================================= */}
 
             <DrawingInteraction
-              mode={
-                drawingMode
-              }
               drawingState={
                 drawingState
               }
+
               setDrawingState={
                 setDrawingState
               }
+
               onComplete={
                 handleAOIComplete
               }
@@ -1754,13 +1606,14 @@ function AOISelection({
 
 
             {/* =================================================
-                MAP VIEW
+                MAP CONTROLLER
                 ================================================= */}
 
             <AOIMapController
               selectedAOI={
                 selectedAOI
               }
+
               targetLocation={
                 targetLocation
               }
@@ -1768,229 +1621,166 @@ function AOISelection({
 
 
             {/* =================================================
-                SELECTED POLYGON
-                ================================================= */}
-
-            {selectedAOI?.type ===
-              "polygon" && (
-              <>
-                <Polygon
-                  positions={
-                    selectedAOI.coordinates
-                  }
-                  interactive={
-                    false
-                  }
-                  pathOptions={{
-                    color:
-                      "#ffffff",
-                    weight: 3,
-                    opacity: 1,
-                    fillColor:
-                      "#ffffff",
-                    fillOpacity:
-                      0.08,
-                  }}
-                />
-
-                {selectedAOI.coordinates.map(
-                  (
-                    point,
-                    index
-                  ) => (
-                    <CircleMarker
-                      key={`polygon-point-${index}`}
-                      center={
-                        point
-                      }
-                      radius={
-                        5
-                      }
-                      interactive={
-                        false
-                      }
-                      pathOptions={{
-                        color:
-                          "#ffffff",
-                        weight: 2,
-                        fillColor:
-                          "#ffffff",
-                        fillOpacity:
-                          1,
-                      }}
-                    />
-                  )
-                )}
-              </>
-            )}
-
-
-            {/* =================================================
                 SELECTED RECTANGLE
                 ================================================= */}
 
-            {selectedAOI?.type ===
-              "rectangle" && (
+            {selectedAOI && (
+
               <>
+
                 <Polygon
                   positions={
                     selectedAOI.coordinates
                   }
+
                   interactive={
                     false
                   }
+
                   pathOptions={{
                     color:
                       "#ffffff",
-                    weight: 3,
-                    opacity: 1,
+
+                    weight:
+                      3,
+
+                    opacity:
+                      1,
+
                     fillColor:
                       "#ffffff",
+
                     fillOpacity:
                       0.08,
                   }}
                 />
+
 
                 {selectedAOI.coordinates.map(
                   (
                     point,
                     index
                   ) => (
+
                     <CircleMarker
-                      key={`rectangle-point-${index}`}
+                      key={
+                        `rectangle-point-${index}`
+                      }
+
                       center={
                         point
                       }
+
                       radius={
                         4
                       }
+
                       interactive={
                         false
                       }
+
                       pathOptions={{
                         color:
                           "#ffffff",
-                        weight: 2,
+
+                        weight:
+                          2,
+
                         fillColor:
                           "#ffffff",
+
                         fillOpacity:
                           1,
                       }}
                     />
+
                   )
                 )}
+
               </>
+
             )}
 
 
             {/* =================================================
-                SELECTED CIRCLE
-                ================================================= */}
-
-            {selectedAOI?.type ===
-              "circle" && (
-              <Circle
-                center={
-                  selectedAOI.center
-                }
-                radius={
-                  selectedAOI.radius
-                }
-                interactive={
-                  false
-                }
-                pathOptions={{
-                  color:
-                    "#ffffff",
-                  weight: 3,
-                  opacity: 1,
-                  fillColor:
-                    "#ffffff",
-                  fillOpacity:
-                    0.08,
-                }}
-              />
-            )}
-
-
-            {/* =================================================
-                POLYGON PREVIEW
-                ================================================= */}
-
-            {drawingMode ===
-              "polygon" &&
-              drawingState.points
-                .length >= 2 && (
-              <Polygon
-                positions={
-                  drawingState.points
-                }
-                interactive={
-                  false
-                }
-                pathOptions={{
-                  color:
-                    "#ffffff",
-                  weight: 2,
-                  dashArray:
-                    "6 5",
-                  fillOpacity:
-                    0.03,
-                }}
-              />
-            )}
-
-
-            {/* =================================================
-                RECTANGLE PREVIEW
+                LIVE RECTANGLE PREVIEW
                 ================================================= */}
 
             {previewRectangle && (
-              <Polygon
-                positions={
-                  previewRectangle
-                }
-                interactive={
-                  false
-                }
-                pathOptions={{
-                  color:
-                    "#ffffff",
-                  weight: 2,
-                  dashArray:
-                    "6 5",
-                  fillOpacity:
-                    0.03,
-                }}
-              />
-            )}
+
+              <>
+
+                <Polygon
+                  positions={
+                    previewRectangle
+                  }
+
+                  interactive={
+                    false
+                  }
+
+                  pathOptions={{
+                    color:
+                      "#ffffff",
+
+                    weight:
+                      2,
+
+                    dashArray:
+                      "6 5",
+
+                    fillColor:
+                      "#ffffff",
+
+                    fillOpacity:
+                      0.08,
+                  }}
+                />
 
 
-            {/* =================================================
-                CIRCLE PREVIEW
-                ================================================= */}
+                {previewRectangle.map(
+                  (
+                    point,
+                    index
+                  ) => (
 
-            {previewCircle && (
-              <Circle
-                center={
-                  previewCircle.center
-                }
-                radius={
-                  previewCircle.radius
-                }
-                interactive={
-                  false
-                }
-                pathOptions={{
-                  color:
-                    "#ffffff",
-                  weight: 2,
-                  dashArray:
-                    "6 5",
-                  fillOpacity:
-                    0.03,
-                }}
-              />
+                    <CircleMarker
+                      key={
+                        `preview-point-${index}`
+                      }
+
+                      center={
+                        point
+                      }
+
+                      radius={
+                        3
+                      }
+
+                      interactive={
+                        false
+                      }
+
+                      pathOptions={{
+                        color:
+                          "#ffffff",
+
+                        weight:
+                          2,
+
+                        fillColor:
+                          "#ffffff",
+
+                        fillOpacity:
+                          1,
+                      }}
+                    />
+
+                  )
+                )}
+
+              </>
+
             )}
 
           </MapContainer>
@@ -2011,7 +1801,9 @@ function AOISelection({
             </div>
 
 
-            {/* AREA */}
+            {/* =================================================
+                AREA
+                ================================================= */}
 
             <div className="aoi-info-stat">
 
@@ -2031,7 +1823,9 @@ function AOISelection({
             </div>
 
 
-            {/* PERIMETER */}
+            {/* =================================================
+                PERIMETER
+                ================================================= */}
 
             <div className="aoi-info-stat">
 
@@ -2050,7 +1844,9 @@ function AOISelection({
             </div>
 
 
-            {/* CENTER */}
+            {/* =================================================
+                CENTER
+                ================================================= */}
 
             <div className="aoi-info-stat">
 
@@ -2075,7 +1871,9 @@ function AOISelection({
             </div>
 
 
-            {/* LOCATION */}
+            {/* =================================================
+                LOCATION
+                ================================================= */}
 
             <div className="aoi-info-stat">
 
@@ -2085,14 +1883,16 @@ function AOISelection({
 
               <strong>
                 {geometryInfo
-                  ? `Custom ${geometryInfo.type}`
+                  ? "Custom Rectangle"
                   : "Not selected"}
               </strong>
 
             </div>
 
 
-            {/* DATE RANGE */}
+            {/* =================================================
+                DATE RANGE
+                ================================================= */}
 
             <div className="aoi-info-stat">
 
@@ -2119,7 +1919,10 @@ function AOISelection({
               </div>
 
               <textarea
-                value={query}
+                value={
+                  query
+                }
+
                 onChange={(
                   event
                 ) =>
@@ -2127,8 +1930,10 @@ function AOISelection({
                     event.target.value
                   )
                 }
+
                 placeholder="Show where vegetation decreased between 2021 and 2025."
               />
+
 
               <div className="aoi-query-help">
                 e.g. Show urban expansion,
@@ -2147,18 +1952,22 @@ function AOISelection({
             <button
               type="button"
               className="aoi-run-button"
+
               disabled={
                 loading ||
                 !selectedAOI ||
                 !query.trim()
               }
+
               onClick={
                 handleRunAnalysis
               }
             >
 
               <span>
-                {loading ? "ANALYZING..." : "RUN ANALYSIS"}
+                {loading
+                  ? "ANALYZING..."
+                  : "RUN ANALYSIS"}
               </span>
 
               <span>
@@ -2176,5 +1985,6 @@ function AOISelection({
     </main>
   );
 }
+
 
 export default AOISelection;

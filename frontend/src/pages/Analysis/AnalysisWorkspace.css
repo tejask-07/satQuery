@@ -130,24 +130,6 @@
   border-left: 1px solid var(--line);
 }
 
-.analysis-complete {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-family: "JetBrains Mono Nerd Font", "JetBrains Mono", monospace;
-  font-size: 7px;
-  font-weight: 700;
-  letter-spacing: 0.7px;
-}
-
-.complete-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
-  background: var(--increase);
-}
-
 .export-button {
   width: 92px;
   height: 36px;
@@ -763,20 +745,6 @@
   margin-top: 16px;
 }
 
-.interpretation-section {
-  padding-bottom: 18px;
-}
-
-.interpretation-text {
-  max-width: 100%;
-  margin: 0;
-  color: var(--muted);
-  font-family: "Lexend Deca", "Lexend", sans-serif;
-  font-size: 7.5px;
-  font-weight: 400;
-  line-height: 1.5;
-}
-
 /* ============================================================
    NAVIGATION
    ============================================================ */
@@ -858,7 +826,6 @@
 
   .analysis-brand { padding-left: 18px; padding-right: 18px; }
   .analysis-header-center { padding-left: 18px; padding-right: 18px; gap: 18px; }
-  .analysis-complete { display: none; }
   .analysis-query { font-size: 12px; }
   .finding-stat-value { font-size: 26px; }
   .finding-stat-value-compact { font-size: 16px; }
@@ -1006,14 +973,6 @@
   margin-top: 24px;
 }
 
-.vqa-interpretation-section {
-  padding-top: 24px;
-}
-
-.vqa-interpretation-section .interpretation-text {
-  margin-top: 12px;
-}
-
 .map-source-legend {
   min-width: 150px;
 }
@@ -1076,31 +1035,8 @@
 }
 
 /* ============================================================
-   EXECUTION TRACE & EMPTY STATES
+   EMPTY STATES
    ============================================================ */
-
-.execution-trace-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 0;
-  list-style: none;
-}
-
-.execution-trace-item {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 8px;
-  line-height: 1.4;
-  color: var(--ink);
-}
-
-.execution-step-num {
-  font-weight: 700;
-  color: var(--muted);
-}
 
 .empty-stat-value {
   font-size: 11px;
