@@ -322,8 +322,8 @@ def answer_optical_sar_question(
 
         if vlm_instance is None:
             try:
-                from app.vlm.rs_vlm import get_rs_vlm
-                vlm_instance = get_rs_vlm()
+                from app.vlm.qwen_vlm import get_qwen_vlm
+                vlm_instance = get_qwen_vlm()
             except Exception as init_err:
                 logger.warning(f"[OPTICAL-SAR VLM] Could not initialize RS-VLM runtime: {init_err}")
                 fallback_answer = generate_optical_sar_fallback_response(
@@ -354,8 +354,7 @@ def answer_optical_sar_question(
 
     try:
         model_confidence = None
-        from app.vlm.rs_vlm import RSVLM
-        if isinstance(vlm_instance, RSVLM):
+        if hasattr(vlm_instance, "explain_optical_sar"):
             rs_res = vlm_instance.explain_optical_sar(
                 optical_image=opt_image,
                 sar_image=sar_images.get("s1_composite") or sar_images.get("s1_vv"),

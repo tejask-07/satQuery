@@ -54,14 +54,20 @@ SATQUERY_CACHE_DIR = os.getenv(
 )
 
 # RS-VLM Runtime Configuration
-# Options for RS_VLM_BACKEND: "mock" (default stub), "hf" (legacy HuggingFace Qwen), "local" (future local weights)
-RS_VLM_BACKEND = os.getenv("RS_VLM_BACKEND", "mock").strip().lower()
+# Options for RS_VLM_BACKEND: "qwen" (base model), "local" (Qwen + LoRA), "mock".
+RS_VLM_BACKEND = os.getenv("RS_VLM_BACKEND", "qwen").strip().lower()
 RS_VLM_ENABLED = os.getenv("RS_VLM_ENABLED", "true").strip().lower() in (
     "1",
     "true",
     "yes",
     "on",
 )
-RS_VLM_ADAPTER_PATH = os.getenv("RS_VLM_ADAPTER_PATH", "").strip()
-RS_VLM_BASE_MODEL = os.getenv("RS_VLM_BASE_MODEL", "").strip()
+RS_VLM_ADAPTER_PATH = os.getenv(
+    "RS_VLM_ADAPTER_PATH",
+    "models/satquery-rs-vlm-30k",
+).strip()
+RS_VLM_BASE_MODEL = os.getenv(
+    "RS_VLM_BASE_MODEL",
+    "Qwen/Qwen2.5-VL-3B-Instruct",
+).strip()
 

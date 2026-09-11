@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app import config
+from app.vlm.rs_prompts import build_task_prompt, build_vqa_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +103,7 @@ def get_rs_vlm(backend: Optional[str] = None, reload: bool = False) -> RSVLM:
     """
     Resolve and return an RSVLM runtime instance according to backend configuration.
 
-    Supported backends:
-    - 'mock': Development stub (default, safe for testing without checkpoint or GPU)
-    - 'local': Integration point for future trained checkpoint / LoRA adapter
-    - 'hf': Legacy cloud Qwen VLM inference client (requires HF_TOKEN)
+    Supported backends are 'qwen', 'local', and 'mock'.
     """
     global _global_rs_vlm_instance
 
@@ -113,7 +111,7 @@ def get_rs_vlm(backend: Optional[str] = None, reload: bool = False) -> RSVLM:
         return _global_rs_vlm_instance
 
     resolved_backend = (
-        backend or getattr(config, "RS_VLM_BACKEND", "mock") or "mock"
+        backend or getattr(config, "RS_VLM_BACKEND", "qwen") or "qwen"
     ).lower().strip()
     is_enabled = getattr(config, "RS_VLM_ENABLED", True)
 
@@ -132,21 +130,23 @@ def get_rs_vlm(backend: Optional[str] = None, reload: bool = False) -> RSVLM:
             adapter_path=getattr(config, "RS_VLM_ADAPTER_PATH", ""),
             base_model=getattr(config, "RS_VLM_BASE_MODEL", ""),
         )
-    elif resolved_backend in ("hf", "qwen"):
-        try:
-            from app.vlm.model import VLM
-            # Legacy wrapper adapting existing VLM to RSVLM interface
-            instance = _LegacyVLMAdapter()
-        except Exception as exc:
-            logger.warning(f"[RS-VLM] Failed to load legacy VLM adapter ({exc}); using MockRSVLM.")
-            from app.vlm.mock_rs_vlm import MockRSVLM
-
-            instance = MockRSVLM()
+    elif resolved_backend == "qwen":
+        base_model = (
+            getattr(config, "RS_VLM_BASE_MODEL", "")
+            or QwenRSVLM.DEFAULT_BASE_MODEL
+        )
+        logger.info(
+            "[RS-VLM] backend=qwen base_model=%s adapter=none",
+            base_model,
+        )
+        instance = QwenRSVLM(
+            base_model=base_model,
+        )
     else:
-        logger.warning(f"[RS-VLM] Unknown backend '{resolved_backend}'; defaulting to MockRSVLM.")
-        from app.vlm.mock_rs_vlm import MockRSVLM
-
-        instance = MockRSVLM()
+        raise ValueError(
+            f"Unknown RS_VLM_BACKEND '{resolved_backend}'. "
+            "Expected qwen, local, or mock."
+        )
 
     if backend is None:
         _global_rs_vlm_instance = instance
@@ -164,6 +164,7 @@ class LocalRSVLM(RSVLM):
         self,
         adapter_path: Optional[str] = None,
         base_model: Optional[str] = None,
+        load_adapter: bool = True,
     ) -> None:
         self._adapter_setting = (adapter_path or self.DEFAULT_ADAPTER_PATH).strip()
         self._base_model = (base_model or self.DEFAULT_BASE_MODEL).strip()
@@ -172,75 +173,140 @@ class LocalRSVLM(RSVLM):
         self._device: Any = None
         self._adapter_path: Optional[Path] = None
         self._load_error: Optional[str] = None
+        self._load_adapter = load_adapter
 
     @staticmethod
-    def _project_paths() -> tuple[Path, Path]:
-        backend_dir = Path(config.BACKEND_DIR).resolve()
-        return backend_dir, backend_dir.parent
+    def _prompt(question: str, evidence: Any, task: str) -> str:
+        normalized_question = (question or "").lower()
+        if task == "single_image_vqa":
+            return build_vqa_prompt(question, evidence)
+
+        prompt_task = task
+        return build_task_prompt(question, evidence, prompt_task)
 
     def _resolve_adapter_path(self) -> Path:
-        configured = Path(self._adapter_setting).expanduser()
-        if configured.is_absolute():
-            candidates = [configured]
+        """Resolve the configured LoRA adapter path from the backend directory."""
+        configured = str(self._adapter_setting or "").strip()
+
+        if not configured:
+            raise ValueError("RS_VLM_ADAPTER_PATH is not configured.")
+
+        adapter_path = Path(configured)
+
+        # Absolute path: use directly.
+        if adapter_path.is_absolute():
+            resolved = adapter_path.resolve()
         else:
-            backend_dir, project_dir = self._project_paths()
-            candidates = [backend_dir / configured, project_dir / configured]
-            if configured.parts and configured.parts[0].lower() == "backend":
-                candidates.insert(0, project_dir / configured)
-        for candidate in candidates:
-            if (candidate / "adapter_config.json").is_file():
-                return candidate.resolve()
-        searched = ", ".join(str(candidate.resolve()) for candidate in candidates)
-        raise FileNotFoundError(
-            f"RS-VLM LoRA adapter was not found. Searched: {searched}"
-        )
+            # Relative paths are resolved from the backend directory.
+            backend_dir = Path(__file__).resolve().parents[2]
+            resolved = (backend_dir / adapter_path).resolve()
+
+        if not resolved.exists():
+            raise FileNotFoundError(
+                f"RS-VLM adapter path does not exist: {resolved}"
+            )
+
+        if not resolved.is_dir():
+            raise NotADirectoryError(
+                f"RS-VLM adapter path is not a directory: {resolved}"
+            )
+
+        return resolved
 
     def _load_model(self) -> None:
         if self._model is not None:
             return
+
         try:
             import torch
-            from peft import PeftModel
-            from accelerate import disk_offload
-            from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
-
-            adapter_path = self._resolve_adapter_path()
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            dtype = (
-                torch.bfloat16
-                if device.type == "cuda" and torch.cuda.is_bf16_supported()
-                else torch.float32
+            from transformers import (
+                AutoProcessor,
+                BitsAndBytesConfig,
+                Qwen2_5_VLForConditionalGeneration,
             )
-            processor = AutoProcessor.from_pretrained(str(adapter_path))
-            if device.type == "cuda":
-                base = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                    self._base_model,
-                    torch_dtype=dtype,
+
+            adapter_path = self._resolve_adapter_path() if self._load_adapter else None
+
+            # ---------------------------------------------------------
+            # GTX 1650 = 4 GB VRAM
+            #
+            # Qwen2.5-VL-3B does not fit in full precision.
+            # Load the base model in 4-bit NF4 quantization and allow
+            # Accelerate to place layers between GPU and CPU.
+            # ---------------------------------------------------------
+
+            if not torch.cuda.is_available():
+                raise RuntimeError(
+                    "CUDA is required for the 4-bit RS-VLM configuration."
                 )
-                base.to(device)
-            else:
-                offload_folder = Path(config.BACKEND_DIR) / "data" / "cache" / "rs_vlm_offload"
-                offload_folder.mkdir(parents=True, exist_ok=True)
-                base = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                    self._base_model,
-                    torch_dtype=dtype,
-                    device_map={"": "cpu"},
-                    low_cpu_mem_usage=True,
-                    offload_state_dict=True,
-                )
-            model = PeftModel.from_pretrained(base, str(adapter_path))
-            if device.type == "cpu":
-                disk_offload(
-                    model,
-                    offload_dir=str(offload_folder),
-                    execution_device=device,
-                )
+
+            device = torch.device("cuda")
+
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_use_double_quant=True,
+            )
+
+            processor = AutoProcessor.from_pretrained(
+                str(adapter_path or self._base_model)
+            )
+
+            # Keep a little VRAM available for Windows/display and
+            # generation. The remaining model weights may be placed
+            # in system RAM by Accelerate.
+            max_memory = {
+                0: "3500MiB",
+                "cpu": "10GiB",
+            }
+
+            logger.info(
+                "[RS-VLM] Loading Qwen2.5-VL-3B in 4-bit mode: backend=%s base_model=%s adapter=%s",
+                "local" if self._load_adapter else "qwen",
+                self._base_model,
+                str(adapter_path) if adapter_path else "none",
+            )
+            logger.info(
+                "[RS-VLM] GPU: %s",
+                torch.cuda.get_device_name(0),
+            )
+            if adapter_path:
+                logger.info("[RS-VLM] LoRA adapter: %s", adapter_path)
+
+            base = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                self._base_model,
+                quantization_config=quantization_config,
+                device_map="auto",
+                max_memory=max_memory,
+                low_cpu_mem_usage=True,
+            )
+
+            logger.info(
+                "[RS-VLM] Quantized base model loaded."
+            )
+
+            model = base
+            if adapter_path:
+                from peft import PeftModel
+
+                model = PeftModel.from_pretrained(base, str(adapter_path))
+                logger.info("[RS-VLM] SatQuery LoRA adapter loaded.")
+
             model.eval()
+
+            logger.info(
+                "[RS-VLM] Local RS-VLM is ready."
+            )
+
         except Exception as exc:
             self._load_error = str(exc)
+
             raise RuntimeError(
-                f"Failed to load local RS-VLM base model '{self._base_model}' "
-                f"with LoRA adapter '{self._adapter_setting}': {exc}"
+                f"Failed to load local RS-VLM base model "
+                f"'{self._base_model}'"
+                + (f" with LoRA adapter '{self._adapter_setting}'" if self._load_adapter else "")
+                + f": {exc}"
             ) from exc
 
         self._processor = processor
@@ -293,16 +359,12 @@ class LocalRSVLM(RSVLM):
 
     @staticmethod
     def _prompt(question: str, evidence: Any, task: str) -> str:
-        return (
-            "You are SatQuery's trained remote-sensing vision-language model.\n"
-            "Answer the requested task directly and concisely.\n"
-            "Deterministic remote-sensing measurements in EVIDENCE are authoritative. "
-            "Explain them faithfully and do not invent measurements, counts, areas, "
-            "coordinates, dates, or sensor facts. If evidence is unavailable, say so.\n\n"
-            f"TASK: {task}\n"
-            f"QUESTION: {question or 'Describe the supplied remote-sensing imagery.'}\n\n"
-            f"EVIDENCE:\n{LocalRSVLM._evidence_text(evidence)}"
-        )
+        question = (question or "").strip()
+
+        if task == "single_image_vqa":
+            return build_vqa_prompt(question, evidence)
+
+        return build_task_prompt(question, evidence, task)
 
     @staticmethod
     def _image_items(image: Optional[Any], images: Optional[Dict[str, Any]]) -> list[tuple[str, Any]]:
@@ -342,10 +404,23 @@ class LocalRSVLM(RSVLM):
                 {"type": "text", "text": f"\n--- {label.upper()} ---"},
                 {"type": "image", "image": self._image_value(value)},
             ])
-        content.append({"type": "text", "text": self._prompt(question, evidence, task)})
+        prompt = self._prompt(question, evidence, task)
+        logger.info(
+            "[RS-VLM DEBUG] question length=%d evidence length=%d prompt length=%d task=%s",
+            len(question or ""),
+            len(str(evidence or "")),
+            len(prompt),
+            task,
+        )
+        content.append({"type": "text", "text": prompt})
         messages = [{"role": "user", "content": content}]
         text = self._processor.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
+        )
+        logger.info(
+            "[RS-VLM DEBUG] final prompt/text length=%d task=%s",
+            len(text),
+            task,
         )
         image_inputs, video_inputs = process_vision_info(messages)
         inputs = self._processor(
@@ -356,15 +431,62 @@ class LocalRSVLM(RSVLM):
             return_tensors="pt",
         )
         inputs = inputs.to(self._device)
+        print("[RS-VLM DEBUG] input_ids shape:", tuple(inputs.input_ids.shape))
+        print("[RS-VLM DEBUG] input_ids min:", inputs.input_ids.min().item())
+        print("[RS-VLM DEBUG] input_ids max:", inputs.input_ids.max().item())
+        print("[RS-VLM DEBUG] model config type:", type(self._model.config).__name__)
+
+        tokenizer = self._processor.tokenizer
+        print("[RS-VLM DEBUG] tokenizer vocab_size:", tokenizer.vocab_size)
+        print("[RS-VLM DEBUG] tokenizer length:", len(tokenizer))
+        print("[RS-VLM DEBUG] tokenizer pad_token_id:", tokenizer.pad_token_id)
+        print("[RS-VLM DEBUG] tokenizer eos_token_id:", tokenizer.eos_token_id)
+
+        text_config = getattr(self._model.config, "text_config", None)
+        if text_config is not None:
+            print("[RS-VLM DEBUG] text vocab_size:", getattr(text_config, "vocab_size", "MISSING"))
+        else:
+            print("[RS-VLM DEBUG] text_config: MISSING")
+        print("[RS-VLM DEBUG] attention_mask shape:", tuple(inputs.attention_mask.shape))
         with __import__("torch").inference_mode():
-            generated = self._model.generate(**inputs, max_new_tokens=512)
+            generated = self._model.generate(
+                **inputs,
+                max_new_tokens=64,
+                do_sample=False,
+            )
         prompt_length = inputs.input_ids.shape[-1]
         generated_trimmed = generated[:, prompt_length:]
-        return self._processor.batch_decode(
+        decoded = self._processor.batch_decode(
             generated_trimmed,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=False,
         )[0].strip()
+
+        print("[RS-VLM DEBUG] task:", task)
+        print("[RS-VLM DEBUG] question:", repr(question))
+        print("[RS-VLM DEBUG] generated:", repr(decoded))
+
+        return decoded
+
+    @staticmethod
+    def _needs_vqa_retry(question: str, answer: str) -> bool:
+        normalized_question = (question or "").lower()
+        normalized_answer = (answer or "").strip().lower()
+        descriptive = any(
+            phrase in normalized_question
+            for phrase in (
+                "what objects",
+                "what land cover",
+                "what land-cover",
+                "describe",
+                "what is visible",
+                "what can be seen",
+                "list the",
+            )
+        )
+        binary = normalized_question.startswith(("is ", "are ", "do ", "does ", "can "))
+        malformed = normalized_answer in {"yes", "no", "1", "0", "102"}
+        return descriptive and not binary and malformed
 
     def get_model_info(self) -> Dict[str, Any]:
         return {
@@ -382,17 +504,32 @@ class LocalRSVLM(RSVLM):
         return {
             "answer": answer,
             "task": task,
-            "model": f"{self._base_model}+LoRA({self._adapter_path or self._adapter_setting})",
+            "model": (
+                f"{self._base_model}+LoRA({self._adapter_path or self._adapter_setting})"
+                if self._load_adapter
+                else self._base_model
+            ),
             "status": "available",
-            "adapter_loaded": True,
+            "adapter_loaded": self._load_adapter,
             "confidence": None,
             "observations": [],
-            "evidence_used": evidence is not None,
+            "evidence_used": evidence is not None and evidence != "",
             "metadata": metadata or {},
         }
 
     def answer(self, image: Optional[Any] = None, question: str = "", evidence: Optional[Any] = None, images: Optional[Dict[str, Any]] = None, task: str = "vqa", metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return self._result(self._generate(image, question, evidence, images, task), task, evidence, metadata)
+        answer = self._generate(image, question, evidence, images, task)
+        if self._load_adapter and task == "single_image_vqa" and self._needs_vqa_retry(question, answer):
+            retry_question = (
+                "The previous answer did not satisfy the requested question format.\n\n"
+                "Reinspect the supplied satellite image.\n\n"
+                f"The user asked:\n{question}\n\n"
+                "This is an open-ended descriptive question. Provide actual visual "
+                "categories or a concise description. Do not answer with yes, no, or "
+                "a numeric/classification ID."
+            )
+            answer = self._generate(image, retry_question, evidence, images, task)
+        return self._result(answer, task, evidence, metadata)
 
     def caption(self, image: Any, evidence: Optional[Any] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         from app.vlm.caption import CAPTION_PROMPT
@@ -413,6 +550,28 @@ class LocalRSVLM(RSVLM):
             images["s1_composite"] = sar_image
         q = question or "Analyze the co-registered optical reflectance and SAR backscatter features."
         return self._result(self._generate(optical_image, q, evidence, images, "optical_sar"), "optical_sar", evidence, metadata)
+
+
+class QwenRSVLM(LocalRSVLM):
+    """Base Qwen2.5-VL runtime without the SatQuery LoRA adapter."""
+
+    def __init__(self, base_model: Optional[str] = None) -> None:
+        super().__init__(
+            adapter_path=None,
+            base_model=base_model,
+            load_adapter=False,
+        )
+
+    def get_model_info(self) -> Dict[str, Any]:
+        return {
+            "name": self._base_model,
+            "backend": "qwen",
+            "base_model": self._base_model,
+            "status": "available" if self._model is not None else "not_loaded",
+            "adapter_loaded": False,
+            "confidence": None,
+            "load_error": self._load_error,
+        }
 
 
 class _LegacyVLMAdapter(RSVLM):

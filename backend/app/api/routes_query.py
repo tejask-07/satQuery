@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional,Any
@@ -34,6 +35,8 @@ from app.evidence.temporal import (
 )
 from app.evidence.calibration import build_calibration_package
 
+logger = logging.getLogger(__name__)
+
 
 def _safe_vis_url(filename: Optional[str]) -> Optional[str]:
     """
@@ -58,7 +61,7 @@ def _safe_vis_url(filename: Optional[str]) -> Optional[str]:
 # ============================================================
 
 from app.vlm.evidence_builder import build_evidence
-from app.vlm.rs_vlm import get_rs_vlm
+from app.vlm.qwen_vlm import get_qwen_vlm
 from app.vlm.p2_imagery import load_p2_images
 from app.vlm.bigearthnet.s1_p4 import build_s1_visualization
 from app.vlm.model import VLM
@@ -462,7 +465,7 @@ def build_explanation(
 def generate_vlm_answer(
     request: QueryRequest,
     p2_response: dict,
-) -> str | None:
+) -> dict | None:
     """
     Run the P4 VLM using:
 
@@ -474,7 +477,8 @@ def generate_vlm_answer(
     The current SIH demo uses the validated
     BigEarthNet S1 patch.
 
-    Returns None when multimodal reasoning is unavailable.
+    Returns None when imagery is unavailable, or structured error metadata when
+    the configured VLM fails.
     """
 
     task = (
@@ -482,6 +486,15 @@ def generate_vlm_answer(
         .get("plan", {})
         .get("task")
     )
+
+    model_info = {
+        "name": config.RS_VLM_BASE_MODEL,
+        "backend": config.RS_VLM_BACKEND,
+        "status": "unavailable",
+        "adapter_loaded": False,
+    }
+    s1_visualization_available = False
+    s1_visualization_error = None
 
     # --------------------------------------------------------
     # Image search currently has no analytical
@@ -538,34 +551,107 @@ def generate_vlm_answer(
             "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57"
         )
 
-        s1_composite = build_s1_visualization(
-            s1_name
-        )
-
-        images["s1_composite"] = (
-            s1_composite
-        )
-
+        try:
+            s1_composite = build_s1_visualization(s1_name)
+        except FileNotFoundError as exc:
+            s1_composite = None
+            s1_visualization_error = str(exc)
+            logger.warning(
+                "[RS-VLM] Optional S1 visualization unavailable: %s",
+                exc,
+            )
+        else:
+            images["s1_composite"] = s1_composite
+            s1_visualization_available = True
         # ====================================================
         # 4. Run RS-VLM
         # ====================================================
 
-        rs_vlm = get_rs_vlm()
+        qwen_vlm = get_qwen_vlm()
+        model_info = qwen_vlm.get_model_info()
+        model_info["s1_visualization_available"] = s1_visualization_available
+        model_info["s1_visualization_error"] = s1_visualization_error
 
-        vlm_res = rs_vlm.explain_change(
-            before_image=images.get("before"),
-            after_image=images.get("after"),
-            evidence=evidence,
-            change_map=images.get("change_map"),
-            question=request.query,
-            metadata={"s1_composite": images.get("s1_composite") is not None},
-        )
+        # ----------------------------------------------------
+        # Single-image VQA
+        # ----------------------------------------------------
+        if task == "single_image_vqa":
+            image = (
+                images.get("after")
+                or images.get("before")
+                or images.get("image")
+            )
+
+            if image is None:
+                return None
+
+            vlm_res = qwen_vlm.answer(
+                image=image,
+                question=request.query,
+                evidence=evidence,
+                task="single_image_vqa",
+                metadata={
+                    "source": "satquery",
+                    "task": task,
+                    "s1_visualization_available": s1_visualization_available,
+                },
+            )
+
+        # ----------------------------------------------------
+        # Image captioning
+        # ----------------------------------------------------
+        elif task == "captioning":
+            image = (
+                images.get("after")
+                or images.get("before")
+                or images.get("image")
+            )
+
+            if image is None:
+                return None
+
+            vlm_res = qwen_vlm.caption(
+                image=image,
+                evidence=evidence,
+                metadata={
+                    "prompt": request.query,
+                    "source": "satquery",
+                    "s1_visualization_available": s1_visualization_available,
+                },
+            )
+
+        # ----------------------------------------------------
+        # Temporal / analytical tasks
+        # ----------------------------------------------------
+        else:
+            s1_name = (
+                "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57"
+            )
+
+            vlm_res = qwen_vlm.explain_change(
+                before_image=images.get("before"),
+                after_image=images.get("after"),
+                evidence=evidence,
+                change_map=images.get("change_map"),
+                question=request.query,
+                metadata={
+                    "s1_composite": s1_visualization_available,
+                    "s1_visualization_error": s1_visualization_error,
+                },
+            )
+
         return {
-            "answer": vlm_res.get("answer"),
-            "model": rs_vlm.get_model_info(),
-            "status": vlm_res.get("status", "mock"),
-            "adapter_loaded": vlm_res.get("adapter_loaded", False),
-            "confidence": vlm_res.get("confidence"),
+                "answer": vlm_res.get("answer"),
+                "model": model_info,
+                "status": vlm_res.get(
+                    "status",
+                    model_info.get("status", "unavailable"),
+                ),
+                "adapter_loaded": vlm_res.get(
+                    "adapter_loaded",
+                    model_info.get("adapter_loaded", False),
+                ),
+                "confidence": vlm_res.get("confidence"),
         }
 
     except Exception as exc:
@@ -580,7 +666,16 @@ def generate_vlm_answer(
             f"{type(exc).__name__}: {exc}"
         )
 
-        return None
+        model_info["status"] = "error"
+        model_info["error"] = f"{type(exc).__name__}: {exc}"
+        return {
+            "answer": None,
+            "model": model_info,
+            "status": "error",
+            "adapter_loaded": model_info.get("adapter_loaded", False),
+            "confidence": None,
+            "error": model_info["error"],
+        }
 
 
 
@@ -2084,7 +2179,8 @@ def process_query(
             vlm_result.get("model")
             if vlm_result
             else {
-                "name": "mock-rs-vlm",
+                "name": config.RS_VLM_BASE_MODEL,
+                "backend": config.RS_VLM_BACKEND,
                 "status": "unavailable",
                 "adapter_loaded": False,
             }
@@ -2117,8 +2213,9 @@ def process_query(
         "steps": analysis_steps,
         "evidence": evidence,
         "model": model_metadata or {
-            "name": "mock-rs-vlm",
-            "status": "mock",
+            "name": config.RS_VLM_BASE_MODEL,
+            "backend": config.RS_VLM_BACKEND,
+            "status": "unavailable",
             "adapter_loaded": False,
         },
     }

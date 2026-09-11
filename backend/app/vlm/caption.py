@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from app.vlm.model import VLM as _OriginalVLM
 from app.vlm.rs_prompts import build_rs_prompt
-from app.vlm.rs_vlm import get_rs_vlm
+from app.vlm.qwen_vlm import get_qwen_vlm
 
 # Exposed for backward compatibility and test fixture monkeypatching
 VLM = _OriginalVLM
@@ -43,10 +43,9 @@ def run_caption(
         if isinstance(modality, str)
         else "unknown"
     )
-    prompt = build_rs_prompt(CAPTION_PROMPT.format(modality=normalized_modality))
-
     # If VLM is monkeypatched in tests or custom legacy caller
     if VLM is not _OriginalVLM:
+        prompt = build_rs_prompt(CAPTION_PROMPT.format(modality=normalized_modality))
         vlm = VLM()
         caption = vlm.generate(
             image=image,
@@ -61,11 +60,11 @@ def run_caption(
         }
 
     # Standard RS-VLM runtime routing
-    runtime = rs_vlm or get_rs_vlm()
+    runtime = rs_vlm or get_qwen_vlm()
     structured = runtime.caption(
         image=image,
         evidence=evidence,
-        metadata={"modality": normalized_modality, "prompt": prompt},
+        metadata={"modality": normalized_modality},
     )
 
     caption_text = structured.get("caption") or structured.get("answer")

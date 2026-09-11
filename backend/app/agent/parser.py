@@ -294,27 +294,84 @@ def detect_optical_sar_intent(query: str) -> bool:
 
     return has_joint_cue or has_analysis_cue
 
-
 def detect_single_image_vqa_intent(query: str) -> bool:
-    """Detect a question about the contents of one selected image."""
-    q = query.lower()
+    """Detect questions about the contents of one selected image."""
+    q = query.lower().strip()
 
-    explicit_vqa = re.search(
+    # Explicit VQA request
+    if re.search(
         r"\b(?:vqa|visual\s+question\s+answering)\b",
         q,
-    ) is not None
-    question_about_image = re.search(
-        r"\b(?:answer\s+(?:this\s+)?question\s+about\s+(?:the\s+)?image|"
-        r"what\s+(?:objects|major\s+objects)\s+are\s+visible|"
-        r"what\s+land[- ]cover\s+types?\s+are\s+visible|"
-        r"what\s+is\s+visible\s+in\s+(?:this\s+)?(?:satellite\s+)?image|"
-        r"what\s+can\s+be\s+seen\s+in\s+(?:this\s+)?(?:satellite\s+)?image|"
-        r"what\s+is\s+shown\s+in\s+(?:this\s+)?(?:satellite\s+)?image|"
-        r"what\s+type\s+of\s+land[- ]cover\s+is\s+visible|"
-        r"what\s+is\s+in\s+(?:this\s+)?(?:satellite\s+)?image)\b",
-        q,
-    ) is not None
-    return explicit_vqa or question_about_image
+        re.IGNORECASE,
+    ):
+        return True
+
+    vqa_patterns = [
+        # ----------------------------------------------------
+        # Open-ended visual questions
+        # ----------------------------------------------------
+        r"\bwhat\s+(?:objects?|major\s+objects?)\s+are\s+(?:visible|shown)\b",
+
+        r"\bwhat\s+(?:objects?|man[- ]made\s+features?|natural\s+features?|buildings?|infrastructure|roads?|water\s+features?|features?)\s+(?:can\s+you\s+see|(?:is|are)\s+(?:visible|shown))\b",
+
+        r"\bwhat\s+features?\s+can\s+you\s+identify\b",
+
+        r"\bwhat\s+can\s+you\s+see\s+in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        r"\bwhat\s+land[- ]cover\s+types?\s+are\s+visible\b",
+
+        r"\bwhat\s+type\s+of\s+land[- ]cover\s+is\s+visible\b",
+
+        r"\bwhat\s+is\s+visible\s+in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        r"\bwhat\s+can\s+be\s+seen\s+in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        r"\bwhat\s+is\s+shown\s+in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        r"\bwhat\s+is\s+in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        r"\bwhat\s+land[- ]cover\s+(?:can\s+you\s+)?see\b",
+        r"\bwhat\s+(?:types?|kinds?)\s+of\s+land[- ]cover\s+(?:are\s+)?(?:visible|shown)\b",
+        r"\bwhat\s+(?:types?|kinds?)\s+of\s+land[- ]cover\s+(?:can\s+you\s+)?see\b",
+        r"\blist\s+(?:the\s+)?(?:main\s+)?land[- ]cover\s+(?:types?|categories)\b",
+        r"\b(?:list|identify)\s+(?:the\s+)?(?:main\s+)?land[- ]cover\s+(?:types?|categories)\b",
+        r"\bwhat\s+land[- ]cover\s+types?\s+(?:are\s+)?in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        # ----------------------------------------------------
+        # "Describe ..." visual questions
+        # ----------------------------------------------------
+        r"\bdescribe\s+(?:the\s+)?(?:main\s+)?objects?\s+(?:visible|shown|seen)\b",
+
+        r"\bdescribe\s+(?:the\s+)?(?:main\s+)?features?\s+(?:visible|shown|seen)\b",
+
+        r"\bdescribe\s+(?:the\s+)?visible\s+features?\s+in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        r"\bdescribe\s+(?:the\s+)?(?:land[- ]cover|scene|contents?)\b",
+
+        r"\bdescribe\s+(?:what\s+is\s+)?visible\s+in\s+(?:the\s+)?(?:satellite\s+)?image\b",
+
+        r"\bdescribe\s+(?:what\s+can\s+be\s+)?seen\s+in\s+(?:the\s+)?(?:satellite\s+)?image\b",
+
+        # ----------------------------------------------------
+        # Yes/no visual questions
+        # ----------------------------------------------------
+        r"\b(?:is|are|do|does|can)\b.+\b(?:visible|shown|seen|present)\b.+\b(?:image|scene|satellite)\b",
+
+        r"\b(?:is|are)\b.+\b(?:in|inside|within)\b.+\b(?:image|scene|satellite)\b",
+
+        r"\b(?:is|are)\s+(?:there|any)\b.+\b(?:image|scene|satellite)\b",
+        r"\bdescribe\s+(?:the\s+)?(?:main\s+)?land[- ]cover\s+types?\s+(?:visible|shown)\b",
+        r"\bdescribe\s+(?:the\s+)?(?:main\s+)?land[- ]cover\s+types?\s+(?:visible\s+)?in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+        r"\bdescribe\s+(?:the\s+)?(?:main\s+)?objects?\s+(?:visible|shown)\b",
+        r"\bdescribe\s+(?:the\s+)?(?:main\s+)?objects?\s+(?:visible\s+)?in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+
+        r"\bidentify\s+(?:the\s+)?visible\s+(?:objects?|man[- ]made\s+features?|natural\s+features?)\s+in\s+(?:(?:this|the)\s+)?(?:satellite\s+)?image\b",
+    ]
+
+    return any(
+        re.search(pattern, q, re.IGNORECASE)
+        for pattern in vqa_patterns
+    )
 
 
 # ============================================================

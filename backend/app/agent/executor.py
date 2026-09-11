@@ -2431,8 +2431,8 @@ def execute_plan(
 
         elif tool_name == "rs_vlm":
 
-            from app.vlm.rs_vlm import RSVLM, get_rs_vlm
-            rs_vlm_inst = context.get("rs_vlm") or context.get("vlm") or get_rs_vlm()
+            from app.vlm.qwen_vlm import get_qwen_vlm
+            rs_vlm_inst = context.get("rs_vlm") or context.get("vlm") or get_qwen_vlm()
             q_text = context.get("question") or context.get("query") or "Explain observed changes."
             ev = context.get("evidence") or context.get("evidence_package") or context.get("detect_change")
             b_img = context.get("before") or context.get("before_image")

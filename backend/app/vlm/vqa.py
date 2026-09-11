@@ -3,8 +3,7 @@
 from typing import Any, Optional
 
 from app.vlm.model import VLM as _OriginalVLM
-from app.vlm.rs_prompts import build_rs_prompt
-from app.vlm.rs_vlm import get_rs_vlm
+from app.vlm.qwen_vlm import get_qwen_vlm
 
 # Exposed for backward compatibility and test fixture monkeypatching
 VLM = _OriginalVLM
@@ -53,19 +52,17 @@ def run_vqa(
     normalized_modality = (
         modality.strip().lower() if isinstance(modality, str) else "unknown"
     )
-    prompt = build_rs_prompt(
-        VQA_PROMPT.format(
-            question=question.strip(),
-            modality=normalized_modality,
-        )
-    )
-
+    prompt = question.strip()
     # If VLM is monkeypatched in tests or custom legacy caller
     if VLM is not _OriginalVLM:
+        legacy_prompt = VQA_PROMPT.format(
+            question=prompt,
+            modality=normalized_modality,
+        )
         vlm = VLM()
         answer = vlm.generate(
             image=image,
-            question=prompt,
+            question=legacy_prompt,
             evidence=evidence,
         )
         return {
@@ -77,7 +74,7 @@ def run_vqa(
         }
 
     # Standard RS-VLM runtime routing
-    runtime = rs_vlm or get_rs_vlm()
+    runtime = rs_vlm or get_qwen_vlm()
     structured = runtime.answer(
         image=image,
         question=prompt,

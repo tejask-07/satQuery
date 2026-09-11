@@ -20,7 +20,7 @@ from app.vlm.optical_sar import run_optical_sar_analysis
 # RS-VLM Multimodal reasoning tools
 from app.vlm.vqa import run_vqa
 from app.vlm.caption import run_caption
-from app.vlm.rs_vlm import get_rs_vlm
+from app.vlm.qwen_vlm import get_qwen_vlm
 
 
 TOOL_REGISTRY = {
@@ -49,7 +49,7 @@ TOOL_REGISTRY = {
     # RS-VLM multimodal reasoning
     "single_image_vqa": run_vqa,
     "captioning": run_caption,
-    "rs_vlm": get_rs_vlm,
+    "rs_vlm": get_qwen_vlm,
 }
 
 

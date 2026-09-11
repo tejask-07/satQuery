@@ -42,7 +42,6 @@ from app.tools.indices import (
     calculate_temporal_ndwi,
 )
 from app.vlm.bigearthnet.s1_p4 import build_s1_visualization
-from app.vlm.rs_vlm import get_rs_vlm
 
 logger = logging.getLogger(__name__)
 
@@ -562,7 +561,9 @@ def process_upload_analysis(
     vlm_model_info = None
     vlm_res = None
     try:
-        rs_vlm = get_rs_vlm()
+        from app.vlm.qwen_vlm import get_qwen_vlm
+
+        rs_vlm = get_qwen_vlm()
         vlm_res = rs_vlm.explain_change(
             before_image=vlm_images.get("before"),
             after_image=vlm_images.get("after"),
