@@ -1,0 +1,418 @@
+/* =========================================================
+   SATQUERY — LANDING PAGE
+   Reference Design Integration
+   ========================================================= */
+
+.landing-page {
+  --paper: #f1ede4;
+  --ink: #11110f;
+  --muted: #6d685f;
+  --line: rgba(17, 17, 15, 0.16);
+
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Lexend Deca", "Lexend", sans-serif;
+}
+
+.landing-page * {
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   HEADER & NAVIGATION
+   ========================================================= */
+
+.landing-nav {
+  height: 82px;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 42px;
+  padding: 0 42px;
+  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.landing-brand-mark {
+  width: 5px;
+  height: 30px;
+  background: var(--ink);
+  display: block;
+}
+
+.landing-brand-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.45px;
+}
+
+.landing-brand-subtitle {
+  margin-top: 4px;
+  font: 500 7px/1 "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.landing-nav-links {
+  display: flex;
+  gap: 28px;
+}
+
+.landing-nav-links a {
+  font: 500 9px/1 "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 0.45px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.landing-nav-links a:hover {
+  color: #2b5545;
+}
+
+.landing-nav-links span {
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.landing-start,
+.landing-explore {
+  border: 0;
+  background: var(--ink);
+  color: #fff;
+  font: 500 9px "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 0.7px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.landing-start:hover {
+  background: #2b5545;
+}
+
+.landing-start:disabled,
+.landing-explore:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.landing-start {
+  height: 38px;
+  padding: 0 18px;
+}
+
+.landing-start span,
+.landing-explore span {
+  margin-left: 16px;
+}
+
+/* =========================================================
+   HERO SECTION
+   ========================================================= */
+
+.landing-hero {
+  position: relative;
+  height: calc(100vh - 82px);
+  min-height: 650px;
+  overflow: hidden;
+  background: #152b25;
+}
+
+.landing-hero-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.landing-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(9, 27, 22, 0.76),
+    rgba(9, 27, 22, 0.24) 55%,
+    rgba(9, 27, 22, 0.15)
+  );
+}
+
+.landing-hero-copy {
+  position: absolute;
+  left: 7%;
+  bottom: 11%;
+  max-width: 710px;
+  color: #f7f4ed;
+  z-index: 2;
+}
+
+.landing-eyebrow {
+  font: 600 8px "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 1.4px;
+  margin-bottom: 24px;
+}
+
+.landing-hero h1 {
+  font-size: clamp(46px, 6.3vw, 92px);
+  line-height: 0.94;
+  letter-spacing: -4px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.landing-hero h1 em {
+  font-style: normal;
+  color: #dce7c9;
+}
+
+.landing-hero p {
+  max-width: 520px;
+  margin: 28px 0 24px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(247, 244, 237, 0.8);
+}
+
+.landing-explore {
+  padding: 15px 18px;
+  background: #f7f4ed;
+  color: var(--ink);
+}
+
+.landing-explore:hover {
+  background: #fff;
+}
+
+.landing-rail {
+  position: absolute;
+  right: 34px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 13px;
+  color: rgba(247, 244, 237, 0.72);
+  font: 600 7px "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 1px;
+  z-index: 2;
+}
+
+.landing-rail-number {
+  font-size: 18px;
+  color: #fff;
+  margin-bottom: 9px;
+}
+
+.landing-coordinates {
+  position: absolute;
+  bottom: 18px;
+  left: 42px;
+  color: rgba(247, 244, 237, 0.78);
+  font: 500 7px "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 0.6px;
+  z-index: 2;
+}
+
+/* =========================================================
+   FEATURES SECTION
+   ========================================================= */
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--line);
+}
+
+.landing-features article {
+  min-height: 280px;
+  padding: 48px 42px;
+  border-right: 1px solid var(--line);
+}
+
+.landing-features article:last-child {
+  border-right: 0;
+}
+
+.landing-features span,
+.landing-globe-copy > span {
+  font: 600 8px "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.landing-features h2 {
+  font-size: 26px;
+  line-height: 1.05;
+  letter-spacing: -1px;
+  margin: 42px 0 14px;
+}
+
+.landing-features p,
+.landing-globe-copy p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+  max-width: 350px;
+}
+
+/* =========================================================
+   GLOBE / TECHNOLOGY SECTION
+   ========================================================= */
+
+.landing-globe {
+  min-height: 620px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: 90px 7%;
+  overflow: hidden;
+}
+
+.landing-globe-copy h2 {
+  font-size: clamp(40px, 5vw, 72px);
+  line-height: 0.95;
+  letter-spacing: -3px;
+  font-weight: 600;
+  max-width: 650px;
+  margin: 28px 0;
+}
+
+.landing-globe-orbit {
+  position: relative;
+  height: 430px;
+}
+
+.landing-orbit {
+  position: absolute;
+  border: 1px solid rgba(17, 17, 15, 0.16);
+  border-radius: 50%;
+  inset: 8% 6%;
+  transform: rotate(-25deg);
+  animation: orbit-rotate 30s linear infinite;
+}
+
+.orbit-b {
+  inset: 17% -4%;
+  transform: rotate(48deg);
+  animation: orbit-rotate 40s linear infinite reverse;
+}
+
+@keyframes orbit-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.landing-globe-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 210px;
+  height: 210px;
+  border-radius: 50%;
+  background: #18342b;
+  color: #f1ede4;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  font: 600 15px "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 1px;
+  box-shadow: 0 0 0 28px rgba(24, 52, 43, 0.05), 0 0 0 56px rgba(24, 52, 43, 0.03);
+}
+
+.landing-globe-core small {
+  font-size: 6px;
+  margin-top: 5px;
+  letter-spacing: 1.4px;
+}
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.landing-footer {
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: 26px 42px;
+  font: 600 7px "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+
+/* =========================================================
+   RESPONSIVE LAYOUT
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .landing-nav {
+    grid-template-columns: 1fr auto;
+    padding: 0 22px;
+  }
+
+  .landing-nav-links {
+    display: none;
+  }
+
+  .landing-start {
+    justify-self: end;
+  }
+
+  .landing-hero-copy {
+    left: 28px;
+    right: 70px;
+  }
+
+  .landing-hero h1 {
+    letter-spacing: -2px;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-features article {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .landing-globe {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-globe-orbit {
+    height: 360px;
+  }
+
+  .landing-footer {
+    padding: 22px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .landing-coordinates {
+    left: 22px;
+  }
+}

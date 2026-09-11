@@ -375,12 +375,12 @@ function AnalysisWorkspace({
   result,
   currentQuery,
   onViewDetails,
-  onViewLayers,
+  onViewLayers: _onViewLayers,
   onRequery,
-  loading = false,
+  loading: _loading = false,
 }: AnalysisWorkspaceProps) {
-  const plan = result.plan as any;
-  const statistics = (result.statistics ??
+  const plan = ((result as any)?.plan ?? {}) as any;
+  const statistics = ((result as any)?.statistics ??
     {}) as any;
 
   const taskName = String(
@@ -1074,8 +1074,7 @@ function AnalysisWorkspace({
      FINDINGS DISPLAY DATA
      ============================================================ */
 
-  const realDateBefore = beforeDate;
-  const realDateAfter = afterDate;
+  void _onViewLayers;
   const cloudCoverText = cloudCover;
 
   const formatSignedNumber = (
@@ -1151,13 +1150,6 @@ const rawAnswer =
     ? result.answer.trim()
     : null;
 
-const interpretationText =
-  typeof (statistics as any)?.interpretation?.summary === "string"
-    ? (statistics as any).interpretation.summary
-    : typeof (statistics as any)?.explanation === "string"
-      ? (statistics as any).explanation
-      : rawAnswer || "Not available for this analysis.";
-
 const vqaAnswer = rawAnswer ?? "Not available for this analysis.";
 const captionAnswer = rawAnswer ?? "Not available for this analysis.";
 const opticalSarAnswer = rawAnswer ?? "Not available for this analysis.";
@@ -1166,17 +1158,6 @@ const confidencePercent =
   result.confidence !== null && result.confidence !== undefined && Number.isFinite(Number(result.confidence))
     ? Math.round(Number(result.confidence) * 100)
     : null;
-
-const executionTrace = Array.isArray(result.execution_trace)
-  ? result.execution_trace
-  : [];
-
-const modelInfo =
-  result.model?.name ||
-  (result as any).interpretation?.model ||
-  (isVqa || isCaption || isOpticalSar ? "Remote Sensing VLM" : null);
-
-const analysisStatus = result.status || "COMPLETE";
 
 const vqaSource =
   firstEvidence?.source === "REAL_SENTINEL_2"
@@ -1255,11 +1236,6 @@ const opticalSarModalities =
         </div>
 
         <div className="analysis-header-actions">
-          <div className="analysis-complete">
-            <span className="complete-dot" />
-            {analysisStatus.toUpperCase()}
-          </div>
-
           <button
             type="button"
             className="export-button"
@@ -1375,35 +1351,6 @@ const opticalSarModalities =
       </span>
 
     </div>
-
-
-    <div className="analysis-data-row">
-
-      <span className="analysis-data-label">
-        {isVqa || isOpticalSar || isCaption || isImageSearch ? "ACQUISITION" : "ACQUISITION DATES"}
-      </span>
-
-      <span className="analysis-data-value">
-
-        {isVqa || isOpticalSar || isCaption || isImageSearch ? (
-          realDateAfter !== "—"
-            ? realDateAfter
-            : realDateBefore
-        ) : isIndexMap ? (
-          realDateAfter
-        ) : (
-          <>
-            {realDateBefore}
-            {" → "}
-            {realDateAfter}
-          </>
-        )}
-
-      </span>
-
-    </div>
-
-
     <div className="analysis-data-row">
 
       <span className="analysis-data-label">
@@ -1419,49 +1366,6 @@ const opticalSarModalities =
   </section>
 
 
-  {/* ======================================================
-      MODEL & EXECUTION TRACE
-      ====================================================== */}
-
-  {(modelInfo || executionTrace.length > 0) && (
-    <section className="analysis-section">
-
-      <div className="analysis-section-label">
-        EXECUTION TRACE
-      </div>
-
-      {modelInfo && (
-        <div className="analysis-data-row" style={{ marginBottom: 8 }}>
-          <span className="analysis-data-label">
-            MODEL
-          </span>
-          <span className="analysis-data-value">
-            {modelInfo}
-          </span>
-        </div>
-      )}
-
-      {executionTrace.length > 0 ? (
-        <ul className="execution-trace-list">
-          {executionTrace.map((step: string, index: number) => (
-            <li key={`trace-${index}`} className="execution-trace-item">
-              <span className="execution-step-num">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span>
-                {step}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="analysis-data-value">
-          Not available for this analysis.
-        </div>
-      )}
-
-    </section>
-  )}
 
 </aside>
         
@@ -1811,35 +1715,7 @@ const opticalSarModalities =
               </span>
             </div>
 
-            {/* LOADING */}
-
-            {loading && (
-              <div className="analysis-loading">
-                <div className="loading-spinner" />
-
-                <div>
-                  <strong>
-                    {isVqa
-                      ? "ANALYZING IMAGE"
-                      : isCaption
-                        ? "GENERATING CAPTION"
-                        : isOpticalSar
-                          ? "ANALYZING MULTIMODAL DATA"
-                          : "ANALYZING AOI"}
-                  </strong>
-
-                  <span>
-                    {isVqa
-                      ? "Grounding the visual question in satellite imagery"
-                      : isCaption
-                        ? "Extracting spatial features and describing scene"
-                        : isOpticalSar
-                          ? "Aligning optical and SAR evidence for multimodal analysis"
-                          : "Retrieving satellite imagery and computing change"}
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* LOADING OVERLAY REMOVED - AnalysisProcessing (Screenshot 2) is the canonical loading screen */}
           </div>
         </section>
 
@@ -1912,15 +1788,6 @@ const opticalSarModalities =
                     </div>
                   </section>
 
-                  <section className="findings-section interpretation-section vqa-interpretation-section">
-                    <div className="findings-label">
-                      EVIDENCE CONTEXT
-                    </div>
-
-                    <p className="interpretation-text">
-                      {interpretationText}
-                    </p>
-                  </section>
                 </>
               )}
 
@@ -1981,15 +1848,6 @@ const opticalSarModalities =
                     </div>
                   </section>
 
-                  <section className="findings-section interpretation-section vqa-interpretation-section">
-                    <div className="findings-label">
-                      SCENE CONTEXT
-                    </div>
-
-                    <p className="interpretation-text">
-                      {interpretationText}
-                    </p>
-                  </section>
                 </>
               )}
 
@@ -2067,15 +1925,6 @@ const opticalSarModalities =
                     </div>
                   </section>
 
-                  <section className="findings-section interpretation-section">
-                    <div className="findings-label">
-                      SCENE CONTEXT
-                    </div>
-
-                    <p className="interpretation-text">
-                      {interpretationText}
-                    </p>
-                  </section>
                 </>
               )}
 
@@ -2305,25 +2154,6 @@ const opticalSarModalities =
   </section>
 
 
-  {/* ======================================================
-      INTERPRETATION
-      ====================================================== */}
-
-  {!isIndexMap && (
-    <section className="findings-section interpretation-section">
-
-      <div className="findings-label">
-        INTERPRETATION
-      </div>
-
-      <p className="interpretation-text">
-        {interpretationText}
-      </p>
-
-    </section>
-  )}
-
-
                 </>
               )}
 
@@ -2394,15 +2224,6 @@ const opticalSarModalities =
         </div>
       </section>
 
-      <section className="findings-section interpretation-section vqa-interpretation-section">
-        <div className="findings-label">
-          INTERPRETATION
-        </div>
-
-        <p className="interpretation-text">
-          The result combines complementary optical and radar observations to interpret the selected scene.
-        </p>
-      </section>
     </>
   )}
 
@@ -2411,23 +2232,6 @@ const opticalSarModalities =
       ====================================================== */}
 
   <div className="analysis-navigation-button">
-
-    {onViewLayers && (
-      <button
-        type="button"
-        className="view-details-button layers-navigation-button"
-        onClick={onViewLayers}
-      >
-        <span>
-          LAYERS
-        </span>
-
-        <span>
-          →
-        </span>
-      </button>
-    )}
-
 
     <button
       type="button"

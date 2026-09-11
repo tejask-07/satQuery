@@ -1,0 +1,1138 @@
+/* =========================================================
+   SATQUERY AI — AOI PAGE
+   ========================================================= */
+
+.aoi-page {
+  --paper: #f4f0e7;
+  --ink: #11110f;
+  --muted: #77736b;
+  --line: rgba(17, 17, 15, 0.18);
+  --soft-line: rgba(17, 17, 15, 0.11);
+
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  background: var(--paper);
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+}
+
+.aoi-page *,
+.aoi-page *::before,
+.aoi-page *::after {
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.aoi-header {
+  flex: 0 0 72px;
+
+  height: 72px;
+  min-height: 72px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 42px;
+
+  border-bottom: 1px solid var(--line);
+
+  background: var(--paper);
+}
+
+.aoi-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.aoi-brand-name {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+
+  font-size: 19px;
+  font-weight: 600;
+
+  line-height: 1;
+
+  letter-spacing: -0.65px;
+}
+
+.aoi-brand-subtitle {
+  margin-top: 5px;
+
+  font-size: 8px;
+  font-weight: 500;
+
+  line-height: 1;
+
+  letter-spacing: 0.8px;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   MAIN GRID
+   ========================================================= */
+
+.aoi-layout {
+  flex: 1 1 0;
+
+  min-width: 0;
+  min-height: 0;
+
+  display: grid;
+
+  grid-template-columns:
+    25%
+    52%
+    23%;
+
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   LEFT SIDEBAR
+   ========================================================= */
+
+.aoi-sidebar {
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+
+  padding:
+    10px 42px 22px;
+
+  border-right: 1px solid var(--line);
+
+  background: var(--paper);
+
+  scrollbar-width: thin;
+}
+
+
+/* =========================================================
+   INTRO
+   ========================================================= */
+
+.aoi-intro {
+  padding-bottom: 24px;
+
+  margin-bottom: 24px;
+
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.aoi-page-number {
+  margin-bottom: 10px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+
+  font-size: 16px;
+  font-weight: 600;
+
+  line-height: 1;
+}
+
+.aoi-intro h1 {
+  margin: 0;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+
+  font-size: clamp(30px, 2.15vw, 37px);
+  font-weight: 600;
+
+  line-height: 0.96;
+
+  letter-spacing: -1.15px;
+}
+
+.aoi-intro p {
+  max-width: 315px;
+
+  margin: 18px 0 0;
+
+  font-size: 9px;
+  font-weight: 500;
+
+  line-height: 1.65;
+
+  letter-spacing: -0.05px;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   SECTIONS
+   ========================================================= */
+
+.aoi-section {
+  padding-bottom: 21px;
+
+  margin-bottom: 21px;
+
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.aoi-section-title {
+  margin-bottom: 16px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  line-height: 1;
+
+  letter-spacing: 0.5px;
+}
+
+
+/* =========================================================
+   SEARCH
+   ========================================================= */
+
+.aoi-search-box {
+  width: 100%;
+  height: 45px;
+
+  display: flex;
+  align-items: center;
+
+  border: 1px solid rgba(17, 17, 15, 0.3);
+
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.aoi-search-icon {
+  flex: 0 0 auto;
+
+  margin-left: 11px;
+
+  font-family: Arial, sans-serif;
+
+  font-size: 18px;
+
+  line-height: 1;
+}
+
+.aoi-search-box input {
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+
+  padding:
+    0 11px;
+
+  border: 0;
+  outline: 0;
+
+  background: transparent;
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.aoi-search-box input::placeholder {
+  color: rgba(17, 17, 15, 0.42);
+}
+
+.aoi-search-box:focus-within {
+  border-color: rgba(17, 17, 15, 0.65);
+}
+
+.aoi-help-text {
+  margin-top: 9px;
+
+  font-size: 9px;
+  font-weight: 500;
+
+  line-height: 1.5;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   DRAWING BUTTONS
+   ========================================================= */
+
+.aoi-drawing-buttons {
+  width: 100%;
+
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    1fr
+    1fr;
+
+  gap: 8px;
+}
+
+.aoi-drawing-button {
+  height: 43px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding: 0 5px;
+
+  border: 1px solid rgba(17, 17, 15, 0.25);
+
+  background: transparent;
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 8px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.aoi-drawing-button:hover {
+  border-color: var(--ink);
+}
+
+.aoi-drawing-button.active {
+  border-color: var(--ink);
+
+  background: var(--ink);
+
+  color: var(--paper);
+}
+
+.draw-icon {
+  font-family: Arial, sans-serif;
+
+  font-size: 13px;
+
+  line-height: 1;
+}
+
+
+/* =========================================================
+   DATE RANGE
+   ========================================================= */
+
+.aoi-date-grid {
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    1fr;
+
+  gap: 12px;
+}
+
+.aoi-date-grid label {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+.aoi-date-grid label span {
+  font-size: 9px;
+  font-weight: 500;
+
+  line-height: 1;
+}
+
+.aoi-date-grid input[type="date"] {
+  width: 100%;
+  height: 40px;
+
+  min-width: 0;
+
+  padding:
+    0 8px;
+
+  border: 1px solid rgba(17, 17, 15, 0.28);
+
+  border-radius: 0;
+
+  outline: none;
+
+  background: transparent;
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+}
+
+.aoi-date-grid input[type="date"]:focus {
+  border-color: var(--ink);
+}
+
+
+/* =========================================================
+   QUICK PRESETS
+   ========================================================= */
+
+.aoi-presets-title {
+  margin-top: 23px;
+  margin-bottom: 11px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  letter-spacing: 0.4px;
+}
+
+.aoi-date-presets {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, 1fr);
+
+  gap: 7px;
+}
+
+.aoi-date-presets button {
+  height: 35px;
+
+  padding: 0;
+
+  border: 1px solid rgba(17, 17, 15, 0.25);
+
+  background: transparent;
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 9px;
+  font-weight: 500;
+
+  cursor: pointer;
+}
+
+.aoi-date-presets button:hover,
+.aoi-date-presets button.active {
+  border-color: var(--ink);
+
+  background: var(--ink);
+
+  color: var(--paper);
+}
+
+
+/* =========================================================
+   CLEAR
+   ========================================================= */
+
+.aoi-clear-button {
+  width: 100%;
+  height: 38px;
+
+  border: 1px solid rgba(17, 17, 15, 0.25);
+
+  background: transparent;
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 9px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.aoi-clear-button:hover {
+  border-color: var(--ink);
+
+  background: var(--ink);
+
+  color: var(--paper);
+}
+
+
+/* =========================================================
+   MAP
+   ========================================================= */
+
+.aoi-map-panel {
+  position: relative;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+
+  background: #243b36;
+}
+
+.aoi-map {
+  width: 100%;
+  height: 100%;
+
+  background: #243b36;
+}
+
+.aoi-map .leaflet-container {
+  width: 100%;
+  height: 100%;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+}
+
+
+/* =========================================================
+   LEAFLET ZOOM
+   ========================================================= */
+
+.aoi-map .leaflet-control-zoom {
+  margin:
+    18px 0 0 18px;
+
+  border: 0;
+
+  box-shadow: none;
+}
+
+.aoi-map .leaflet-control-zoom a {
+  width: 43px;
+  height: 43px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid rgba(17, 17, 15, 0.18);
+
+  background: rgba(244, 240, 231, 0.95);
+
+  color: var(--ink);
+
+  font-family: Arial, sans-serif;
+
+  font-size: 20px;
+}
+
+.aoi-map .leaflet-control-zoom a:hover {
+  background: var(--ink);
+
+  color: var(--paper);
+}
+
+
+/* =========================================================
+   SCALE CONTROL
+   ========================================================= */
+
+.aoi-map .leaflet-control-scale {
+  margin:
+    0 0 18px 18px;
+}
+
+.aoi-map .leaflet-control-scale-line {
+  border:
+    2px solid var(--paper);
+
+  border-top: 0;
+
+  padding:
+    3px 5px 1px;
+
+  background:
+    rgba(17, 17, 15, 0.7);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    monospace;
+
+  font-size: 8px;
+
+  box-shadow: none;
+}
+
+
+/* =========================================================
+   RIGHT INFORMATION
+   ========================================================= */
+
+.aoi-info-panel {
+  min-width: 0;
+  min-height: 0;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  padding:
+    34px 30px 36px;
+
+  border-left: 1px solid var(--line);
+
+  background: var(--paper);
+
+  scrollbar-width: thin;
+}
+
+.aoi-info-section {
+  width: 100%;
+}
+
+.aoi-info-title {
+  margin-bottom: 24px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  line-height: 1;
+
+  letter-spacing: 0.5px;
+}
+
+
+/* =========================================================
+   INFORMATION ROWS
+   ========================================================= */
+
+.aoi-info-stat {
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 9px;
+
+  padding:
+    16px 0;
+
+  border-top: 1px solid var(--soft-line);
+}
+
+.aoi-info-stat:first-of-type {
+  padding-top: 0;
+
+  border-top: 0;
+}
+
+.aoi-info-stat span {
+  font-size: 9px;
+  font-weight: 500;
+
+  line-height: 1;
+
+  letter-spacing: 0.55px;
+
+  color: var(--muted);
+}
+
+.aoi-info-stat strong {
+  display: block;
+
+  max-width: 100%;
+
+  overflow-wrap: anywhere;
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 15px;
+  font-weight: 500;
+
+  line-height: 1.35;
+
+  color: var(--ink);
+}
+
+.aoi-info-stat small {
+  display: block;
+
+  margin-top: -3px;
+
+  font-size: 10px;
+  font-weight: 500;
+
+  line-height: 1;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   QUERY
+   ========================================================= */
+
+.aoi-query-section {
+  padding-top: 23px;
+
+  margin-top: 5px;
+
+  border-top: 1px solid var(--line);
+}
+
+.aoi-query-title {
+  margin-bottom: 15px;
+
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  line-height: 1.2;
+
+  letter-spacing: 0.4px;
+}
+
+.aoi-query-section textarea {
+  width: 100%;
+  min-height: 126px;
+
+  display: block;
+
+  padding:
+    13px 12px;
+
+  resize: vertical;
+
+  border: 1px solid rgba(17, 17, 15, 0.28);
+
+  border-radius: 0;
+
+  outline: none;
+
+  background: rgba(255, 255, 255, 0.1);
+
+  color: var(--ink);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 11px;
+  font-weight: 500;
+
+  line-height: 1.55;
+}
+
+.aoi-query-section textarea::placeholder {
+  color: rgba(17, 17, 15, 0.42);
+}
+
+.aoi-query-section textarea:focus {
+  border-color: var(--ink);
+}
+
+.aoi-query-help {
+  margin-top: 9px;
+
+  font-size: 9px;
+  font-weight: 500;
+
+  line-height: 1.5;
+
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   RUN ANALYSIS
+   ========================================================= */
+
+.aoi-run-button {
+  width: 100%;
+  height: 57px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 22px;
+
+  padding:
+    0 18px;
+
+  border: 1px solid var(--ink);
+
+  background: var(--ink);
+
+  color: var(--paper);
+
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  letter-spacing: 0.35px;
+
+  cursor: pointer;
+
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.aoi-run-button:hover:not(:disabled) {
+  background: transparent;
+
+  color: var(--ink);
+}
+
+.aoi-run-button:disabled {
+  opacity: 0.28;
+
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+.aoi-sidebar::-webkit-scrollbar,
+.aoi-info-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.aoi-sidebar::-webkit-scrollbar-track,
+.aoi-info-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.aoi-sidebar::-webkit-scrollbar-thumb,
+.aoi-info-panel::-webkit-scrollbar-thumb {
+  background: rgba(17, 17, 15, 0.2);
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1200px) {
+
+  .aoi-header {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+
+  .aoi-sidebar {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+
+  .aoi-info-panel {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+}
+
+
+@media (max-width: 900px) {
+
+  .aoi-layout {
+    grid-template-columns:
+      30%
+      45%
+      25%;
+  }
+
+  .aoi-drawing-buttons {
+    grid-template-columns:
+      1fr;
+  }
+
+  .aoi-date-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+  .aoi-date-presets {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+}
+
+
+@media (max-width: 700px) {
+
+  .aoi-page {
+    height: auto;
+
+    overflow: visible;
+  }
+
+  .aoi-header {
+    position: sticky;
+
+    top: 0;
+
+    z-index: 1000;
+  }
+
+  .aoi-layout {
+    display: flex;
+    flex-direction: column;
+
+    overflow: visible;
+  }
+
+  .aoi-sidebar,
+  .aoi-info-panel {
+    overflow: visible;
+
+    border: 0;
+  }
+
+  .aoi-map-panel {
+    height: 60vh;
+    min-height: 420px;
+  }
+
+}
+
+.aoi-map-panel {
+  position: relative;
+}
+
+.aoi-drawing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 450;
+  cursor: crosshair;
+  background: transparent;
+  pointer-events: auto;
+}
+
+/* =========================================================
+   SATQUERY TYPE SYSTEM — FINAL
+   ========================================================= */
+
+.aoi-page h1,
+.aoi-page h2,
+.aoi-page h3,
+.aoi-page button,
+.aoi-page-number,
+.aoi-section-title,
+.aoi-info-title,
+.aoi-query-title,
+.aoi-presets-title,
+.aoi-brand-name {
+  font-family:
+    "Lexend Deca",
+    "Lexend",
+    sans-serif;
+}
+
+.aoi-page input,
+.aoi-page textarea,
+.aoi-help-text,
+.aoi-query-help,
+.aoi-brand-subtitle,
+.aoi-info-stat span,
+.aoi-info-stat strong,
+.aoi-info-stat small {
+  font-family:
+    "JetBrains Mono",
+    "JetBrainsMono Nerd Font",
+    monospace;
+}
+
+
+/* =========================================================
+   SATQUERY — WEIGHT REFINEMENT
+   ========================================================= */
+
+.aoi-brand-name {
+  font-weight: 600;
+}
+
+.aoi-brand-subtitle {
+  font-weight: 500;
+}
+
+.aoi-page-number {
+  font-weight: 600;
+}
+
+.aoi-intro h1 {
+  font-weight: 600;
+}
+
+.aoi-section-title,
+.aoi-presets-title,
+.aoi-info-title,
+.aoi-query-title {
+  font-weight: 600;
+}
+
+.aoi-date-grid label span,
+.aoi-info-stat span {
+  font-weight: 500;
+}
+
+.aoi-info-stat strong {
+  font-weight: 500;
+}
+
+.aoi-date-presets button {
+  font-weight: 500;
+}
+
+.aoi-clear-button,
+.aoi-run-button {
+  font-weight: 600;
+}
+
+
+/* =========================================================
+   SATQUERY — AOI V2 VERTICAL FIT
+   ========================================================= */
+
+.aoi-sidebar {
+  padding-top: 30px;
+  padding-bottom: 30px;
+}
+
+.aoi-info-panel {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+.aoi-info-title {
+  margin-bottom: 16px;
+}
+
+.aoi-info-stat {
+  gap: 7px;
+  padding: 11px 0;
+}
+
+.aoi-query-section {
+  padding-top: 16px;
+  margin-top: 0;
+}
+
+.aoi-query-title {
+  margin-bottom: 11px;
+}
+
+.aoi-query-section textarea {
+  min-height: 108px;
+}
+
+.aoi-query-help {
+  margin-top: 7px;
+}
+
+.aoi-run-button {
+  height: 52px;
+  margin-top: 14px;
+}
+
+
+/* =========================================================
+   AOI FINAL LOCK — LEFT PANEL FIT
+   ========================================================= */
+
+@media (min-width: 901px) {
+  .aoi-sidebar {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 10px;
+    padding-bottom: 22px;
+  }
+
+  .aoi-intro {
+    padding-bottom: 24px;
+    margin-bottom: 24px;
+  }
+
+  .aoi-intro p {
+    margin-top: 18px;
+  }
+}
