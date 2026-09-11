@@ -295,6 +295,28 @@ def detect_optical_sar_intent(query: str) -> bool:
     return has_joint_cue or has_analysis_cue
 
 
+def detect_single_image_vqa_intent(query: str) -> bool:
+    """Detect a question about the contents of one selected image."""
+    q = query.lower()
+
+    explicit_vqa = re.search(
+        r"\b(?:vqa|visual\s+question\s+answering)\b",
+        q,
+    ) is not None
+    question_about_image = re.search(
+        r"\b(?:answer\s+(?:this\s+)?question\s+about\s+(?:the\s+)?image|"
+        r"what\s+(?:objects|major\s+objects)\s+are\s+visible|"
+        r"what\s+land[- ]cover\s+types?\s+are\s+visible|"
+        r"what\s+is\s+visible\s+in\s+(?:this\s+)?(?:satellite\s+)?image|"
+        r"what\s+can\s+be\s+seen\s+in\s+(?:this\s+)?(?:satellite\s+)?image|"
+        r"what\s+is\s+shown\s+in\s+(?:this\s+)?(?:satellite\s+)?image|"
+        r"what\s+type\s+of\s+land[- ]cover\s+is\s+visible|"
+        r"what\s+is\s+in\s+(?:this\s+)?(?:satellite\s+)?image)\b",
+        q,
+    ) is not None
+    return explicit_vqa or question_about_image
+
+
 # ============================================================
 # MAIN QUERY PARSER & ANALYSIS PLANNER
 # ============================================================
@@ -369,14 +391,7 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
     # --------------------------------------------------------
     # 0B. SINGLE-IMAGE VQA INTENT
     # --------------------------------------------------------
-    is_vqa = (
-        (
-            re.search(r"\b(?:what\s+is\s+visible|what\s+type\s+of\s+land\s+cover|is\s+there\s+a\s+water\s+body|are\s+there\s+built-up|what\s+major\s+objects)\b", query) is not None
-            or re.search(r"\b(?:what\s+is\s+in\s+this\s+image|answer\s+this\s+question)\b", query) is not None
-        )
-        and not is_change_query
-        and not has_temporal_input
-    )
+    is_vqa = detect_single_image_vqa_intent(query) and not is_change_query
     if is_vqa:
         return QueryPlan(
             task="single_image_vqa",
@@ -899,4 +914,4 @@ def parse_query(request: QueryRequest) -> QueryPlan:
     t_mode = detect_temporal_mode(request.query, plan.time_start, plan.time_end)
     plan.temporal_mode = t_mode
     return plan
-
+

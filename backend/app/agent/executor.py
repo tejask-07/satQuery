@@ -7,6 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import rasterio
+from PIL import Image
 from rasterio.warp import transform_bounds
 
 from app.agent.registry import get_tool
@@ -405,6 +406,21 @@ def _get_images(
         )
 
     return images[0], images[1]
+
+
+def _load_vqa_scene_image(imagery_result: dict) -> tuple[object | None, dict | None]:
+    """Load the latest selected scene visualization for single-image VQA."""
+    images = imagery_result.get("images", []) if isinstance(imagery_result, dict) else []
+    if not images:
+        return None, None
+
+    scene = images[-1]
+    visualization = scene.get("visualizations", {}).get("true_color", {})
+    image_path = visualization.get("path") if isinstance(visualization, dict) else None
+    if image_path and Path(image_path).exists():
+        with Image.open(image_path) as image:
+            return image.convert("RGB").copy(), scene
+    return None, scene
 
 
 
@@ -2368,6 +2384,20 @@ def execute_plan(
             mod = context.get("modality", "unknown")
             ev = context.get("evidence")
             rs_vlm_inst = context.get("rs_vlm") or context.get("vlm")
+
+            # The UI supplies an AOI and dates, but not a filesystem image path.
+            # Resolve one latest scene for VQA without adding a search tool to the plan.
+            if img is None:
+                selected_imagery = get_tool("search_imagery")(
+                    time_start=time_start,
+                    time_end=time_end,
+                    aoi=context.get("aoi"),
+                )
+                img, selected_scene = _load_vqa_scene_image(selected_imagery)
+                if selected_scene:
+                    ev = ev or {"scene": selected_scene}
+                    context["vqa_scene"] = selected_scene
+                    context["vqa_imagery"] = selected_imagery
 
             result = tool(
                 image=img,

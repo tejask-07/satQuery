@@ -926,7 +926,7 @@ def process_query(
         time_end=plan.time_end or getattr(request, "time_end", None),
         task=plan.task,
     )
-    if not comp_res.valid:
+    if not comp_res.valid and plan.task != "single_image_vqa":
         raise HTTPException(
             status_code=400,
             detail=comp_res.to_http_detail(),
@@ -939,6 +939,50 @@ def process_query(
     tools = create_execution_plan(
         plan
     )
+
+    # Single-image VQA has its own response contract. It must not enter the
+    # temporal evidence/change-map synthesis path used by change detection.
+    if plan.task == "single_image_vqa":
+        execution_results = execute_plan(
+            tools,
+            context={
+                "question": request.query,
+                "query": request.query,
+                "image": None,
+                "aoi": plan.aoi,
+                "time_start": plan.time_start or request.time_start,
+                "time_end": plan.time_end or request.time_end,
+                "task": plan.task,
+                "modality": "optical",
+            },
+        )
+        vqa_result = execution_results.get("single_image_vqa", {})
+        answer = vqa_result.get("answer")
+        scene = vqa_result.get("scene")
+        statistics = {
+            "explanation": answer,
+            "vqa": {
+                "question": vqa_result.get("question", request.query),
+                "scene_id": scene.get("id") if isinstance(scene, dict) else None,
+                "scene_date": scene.get("date") if isinstance(scene, dict) else None,
+            },
+        }
+        model = vqa_result.get("model")
+        return AnalysisResult(
+            status="success",
+            answer=answer,
+            confidence=vqa_result.get("confidence"),
+            plan=plan.model_dump(),
+            statistics=statistics,
+            evidence=[{"source": "single_image_vqa", "scene": scene}] if scene else [],
+            execution_trace=["Task identified: single_image_vqa", "Executed: single_image_vqa"],
+            model={"name": model, "status": vqa_result.get("status")} if model else None,
+            execution_summary={
+                "query": request.query,
+                "task": plan.task,
+                "steps": [{"tool": "single_image_vqa", "status": "success"}],
+            },
+        )
 
     # --------------------------------------------------------
     # OPTICAL-SAR MULTIMODAL ROUTE

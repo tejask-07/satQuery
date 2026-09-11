@@ -18,6 +18,8 @@ from app.agent.executor import execute_plan
 from app.agent.parser import parse_query
 from app.agent.planner import create_execution_plan
 from app.agent.registry import get_tool
+import app.agent.executor as executor_module
+import app.api.routes_query as routes_query
 from app.evaluation.benchmarks import (
     BigEarthNetEvaluator,
     CDVQAEvaluator,
@@ -122,6 +124,32 @@ def test_parser_detects_vqa_and_caption_intents():
     assert plan_vqa.task == "single_image_vqa"
 
 
+def test_parser_routes_ui_vqa_query_even_with_frontend_dates():
+    query = (
+        "Use visual question answering to analyze the selected satellite image. "
+        "What objects and land-cover types are visible in this image?"
+    )
+
+    plan = parse_query(
+        QueryRequest(
+            query=query,
+            time_start="2021",
+            time_end="2025",
+        )
+    )
+
+    assert plan.task == "single_image_vqa"
+    assert plan.intent == "single_image_vqa"
+
+
+def test_temporal_language_takes_precedence_over_vqa():
+    vegetation = parse_query(QueryRequest(query="show vegetation changes from 2021 and 2025"))
+    comparison = parse_query(QueryRequest(query="compare vegetation between 2021 and 2025"))
+
+    assert vegetation.task != "single_image_vqa"
+    assert comparison.task != "single_image_vqa"
+
+
 def test_executor_executes_vqa_and_captioning_tools():
     """Verify agent executor executes single_image_vqa and captioning registered tools."""
     mock_img = Image.new("RGB", (32, 32), color="blue")
@@ -139,6 +167,62 @@ def test_executor_executes_vqa_and_captioning_tools():
     exec_res = execute_plan(["single_image_vqa"], context=context)
     assert "single_image_vqa" in exec_res
     assert exec_res["single_image_vqa"]["status"] == "mock"
+
+
+def test_executor_calls_vqa_tool_and_returns_text(monkeypatch):
+    calls = []
+
+    def fake_vqa(**kwargs):
+        calls.append(kwargs)
+        return {
+            "task": "single_image_vqa",
+            "answer": "Water and vegetation are visible.",
+            "confidence": None,
+        }
+
+    def fake_get_tool(name):
+        assert name == "single_image_vqa"
+        return fake_vqa
+
+    monkeypatch.setattr(executor_module, "get_tool", fake_get_tool)
+    result = execute_plan(
+        ["single_image_vqa"],
+        context={"image": object(), "question": "What is visible in this image?"},
+    )
+
+    assert calls[0]["question"] == "What is visible in this image?"
+    assert result["single_image_vqa"]["answer"] == "Water and vegetation are visible."
+    assert result["single_image_vqa"]["confidence"] is None
+
+
+def test_api_exposes_vqa_answer_without_change_pipeline(monkeypatch):
+    def fake_execute_plan(tools, context=None):
+        assert tools == ["single_image_vqa"]
+        return {
+            "single_image_vqa": {
+                "answer": "Water and vegetation are visible.",
+                "confidence": None,
+                "status": "mock",
+            }
+        }
+
+    monkeypatch.setattr(routes_query, "execute_plan", fake_execute_plan)
+    result = routes_query.process_query(
+        QueryRequest(
+            query="Use visual question answering to analyze the selected satellite image. "
+            "What objects and land-cover types are visible in this image?",
+            time_start="2021",
+            time_end="2025",
+        )
+    )
+
+    assert result.answer == "Water and vegetation are visible."
+    assert result.confidence is None
+    assert result.plan["task"] == "single_image_vqa"
+    assert result.execution_trace == [
+        "Task identified: single_image_vqa",
+        "Executed: single_image_vqa",
+    ]
 
 
 def test_temporal_change_explanation_evidence_preservation():
