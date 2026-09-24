@@ -15,6 +15,9 @@ ALLOWED_INTENTS = {
     "image_comparison",
     "image_search",
     "optical_sar_analysis",
+    "sar_analysis",
+    "sar_temporal_change",
+    "multimodal_temporal_change",
     "single_image_vqa",
     "captioning",
     "temporal_change",
@@ -294,6 +297,66 @@ def detect_optical_sar_intent(query: str) -> bool:
 
     return has_joint_cue or has_analysis_cue
 
+
+def detect_sar_intent(query: str) -> bool:
+    """
+    Detect whether a query represents a SAR/radar-focused remote sensing request.
+    Examples:
+      - "Detect flooding using radar"
+      - "Analyze this area using SAR"
+      - "Detect changes despite cloud cover"
+      - "Show radar backscatter"
+    """
+    q = query.lower()
+    # Explicit spectral indices have priority
+    if any(k in q for k in ["calculate ndvi", "calculate ndwi", "calculate ndbi", "compute ndvi", "compute ndwi", "compute ndbi"]):
+        return False
+    # If both optical and SAR requested, multimodal has priority
+    if detect_optical_sar_intent(query):
+        return False
+
+    sar_cues = [
+        "sar",
+        "radar",
+        "sentinel-1",
+        "sentinel 1",
+        "s1",
+        "backscatter",
+        "cloud cover",
+        "despite cloud",
+        "through cloud",
+        "penetrate cloud",
+        "penetrates cloud",
+        "microwave",
+    ]
+    return any(c in q for c in sar_cues)
+
+
+def resolve_query_modality(query: str, request_modality: Optional[str] = None) -> Tuple[str, Any]:
+    """
+    Resolve requested modality and sensor based on explicit request parameter or query semantics.
+    Returns:
+        (modality, sensor)
+        e.g. ("optical", "sentinel-2"), ("sar", "sentinel-1"), ("multimodal", ["sentinel-2", "sentinel-1"])
+    """
+    req_mod = (request_modality or "").lower().strip()
+    if req_mod == "sar":
+        return "sar", "sentinel-1"
+    if req_mod in ("optical", "sentinel-2"):
+        return "optical", "sentinel-2"
+    if req_mod in ("multimodal", "optical_sar", "both"):
+        return "multimodal", ["sentinel-2", "sentinel-1"]
+
+    # Auto-detect from query content
+    if detect_optical_sar_intent(query):
+        return "multimodal", ["sentinel-2", "sentinel-1"]
+    if detect_sar_intent(query):
+        return "sar", "sentinel-1"
+
+    # Default to optical (Sentinel-2)
+    return "optical", "sentinel-2"
+
+
 def detect_single_image_vqa_intent(query: str) -> bool:
     """Detect questions about the contents of one selected image."""
     q = query.lower().strip()
@@ -512,9 +575,66 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
         )
 
     # --------------------------------------------------------
-    # 1B. OPTICAL-SAR MULTIMODAL ANALYSIS
+    # 1B. SAR REMOTE-SENSING ANALYSIS (SENTINEL-1)
     # --------------------------------------------------------
-    if detect_optical_sar_intent(query):
+    resolved_mod, resolved_sens = resolve_query_modality(query, getattr(request, "modality", None))
+
+    if resolved_mod == "sar":
+        target_val = (
+            "water"
+            if any(w in query for w in ["flood", "flooding", "water", "river", "lake", "wetland"])
+            else (
+                "urban"
+                if any(w in query for w in ["urban", "built-up", "built up", "city", "building", "structure"])
+                else ("vegetation" if any(w in query for w in ["vegetation", "forest", "crop"]) else None)
+            )
+        )
+        targets_list = [target_val] if target_val else ["water", "urban"]
+        is_sar_temporal = is_change_query and (has_temporal_input or year_count >= 2)
+
+        if is_sar_temporal:
+            return QueryPlan(
+                task="sar_temporal_change",
+                intent="sar_temporal_change",
+                modality="sar",
+                sensor="sentinel-1",
+                target=target_val,
+                targets=targets_list,
+                time_start=time_start,
+                time_end=time_end,
+                aoi=aoi,
+                modalities=["sar"],
+                primary_indicators=["radar_backscatter", "backscatter_diff"],
+                supporting_indicators=["spatial_consistency"],
+                evidence_requirements=["sar"],
+                direction="both",
+                analysis=["sar_temporal_change"],
+                outputs=["map", "statistics", "explanation", "confidence"],
+            )
+        else:
+            return QueryPlan(
+                task="sar_analysis",
+                intent="sar_analysis",
+                modality="sar",
+                sensor="sentinel-1",
+                target=target_val,
+                targets=targets_list,
+                time_start=time_start if has_temporal_input else None,
+                time_end=time_end if has_temporal_input else None,
+                aoi=aoi,
+                modalities=["sar"],
+                primary_indicators=["radar_backscatter"],
+                supporting_indicators=["spatial_consistency"],
+                evidence_requirements=["sar"],
+                direction="unknown",
+                analysis=["sar_analysis"],
+                outputs=["map", "statistics", "explanation", "confidence"],
+            )
+
+    # --------------------------------------------------------
+    # 1C. OPTICAL-SAR MULTIMODAL ANALYSIS (SENTINEL-2 + SENTINEL-1)
+    # --------------------------------------------------------
+    if resolved_mod == "multimodal":
         target_val = (
             "urban"
             if any(w in query for w in ["urban", "built-up", "built up", "city", "building"])
@@ -525,22 +645,26 @@ def _parse_query_impl(request: QueryRequest) -> QueryPlan:
             )
         )
         targets_list = [target_val] if target_val else ["urban", "water"]
+        is_multi_temporal = is_change_query and (has_temporal_input or year_count >= 2)
+        task_name = "multimodal_temporal_change" if is_multi_temporal else "optical_sar_analysis"
 
         return QueryPlan(
-            task="optical_sar_analysis",
-            intent="optical_sar_analysis",
+            task=task_name,
+            intent=task_name,
+            modality="multimodal",
+            sensor=["sentinel-2", "sentinel-1"],
             target=target_val,
             targets=targets_list,
-            time_start=time_start if has_temporal_input else None,
-            time_end=time_end if has_temporal_input else None,
+            time_start=time_start if (has_temporal_input or is_multi_temporal) else None,
+            time_end=time_end if (has_temporal_input or is_multi_temporal) else None,
             aoi=aoi,
             modalities=["optical", "sar"],
             primary_indicators=["optical_reflectance", "radar_backscatter"],
             supporting_indicators=["spatial_consistency"],
             evidence_requirements=["multimodal"],
-            direction="unknown",
-            analysis=["optical_sar_analysis"],
-            outputs=["explanation", "confidence"],
+            direction="both" if is_multi_temporal else "unknown",
+            analysis=[task_name],
+            outputs=["map", "statistics", "explanation", "confidence"],
         )
 
     # --------------------------------------------------------
@@ -964,11 +1088,20 @@ def detect_temporal_mode(query: str, time_start: Optional[str] = None, time_end:
 
 def parse_query(request: QueryRequest) -> QueryPlan:
     """
-    Public entry point: parse natural-language query into a QueryPlan
-    and attach deterministic temporal_mode metadata.
+    Public entry point: parse natural-language query into a QueryPlan,
+    attach deterministic temporal_mode metadata, and ensure modality and sensor are resolved.
     """
     plan = _parse_query_impl(request)
     t_mode = detect_temporal_mode(request.query, plan.time_start, plan.time_end)
     plan.temporal_mode = t_mode
+
+    if not plan.modality or not plan.sensor:
+        resolved_mod, resolved_sens = resolve_query_modality(request.query, getattr(request, "modality", None))
+        if not plan.modality:
+            plan.modality = resolved_mod
+        if not plan.sensor:
+            plan.sensor = resolved_sens
+
     return plan
+
 

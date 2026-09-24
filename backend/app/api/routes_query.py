@@ -63,7 +63,6 @@ def _safe_vis_url(filename: Optional[str]) -> Optional[str]:
 from app.vlm.evidence_builder import build_evidence
 from app.vlm.qwen_vlm import get_qwen_vlm
 from app.vlm.p2_imagery import load_p2_images
-from app.vlm.bigearthnet.s1_p4 import build_s1_visualization
 from app.vlm.model import VLM
 
 
@@ -531,46 +530,18 @@ def generate_vlm_answer(
         if not images:
             return None
 
-        # ====================================================
-        # 3. Load real Sentinel-1 imagery
-        #
-        # Current validated BigEarthNet demo mapping:
-        #
-        # S2:
-        # S2A_MSIL2A_20170613T101031_N9999_R022_T33UUP_26_57
-        #
-        # S1:
-        # S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57
-        #
-        # The S1 loader uses:
-        #
-        # local disk cache -> RAM cache
-        # ====================================================
+        # Optical analysis uses Sentinel-2 imagery
+        s1_visualization_available = False
+        s1_visualization_error = None
 
-        s1_name = (
-            "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57"
-        )
-
-        try:
-            s1_composite = build_s1_visualization(s1_name)
-        except FileNotFoundError as exc:
-            s1_composite = None
-            s1_visualization_error = str(exc)
-            logger.warning(
-                "[RS-VLM] Optional S1 visualization unavailable: %s",
-                exc,
-            )
-        else:
-            images["s1_composite"] = s1_composite
-            s1_visualization_available = True
         # ====================================================
-        # 4. Run RS-VLM
+        # 4. Run Qwen VLM
         # ====================================================
 
         qwen_vlm = get_qwen_vlm()
         model_info = qwen_vlm.get_model_info()
-        model_info["s1_visualization_available"] = s1_visualization_available
-        model_info["s1_visualization_error"] = s1_visualization_error
+        model_info["s1_visualization_available"] = False
+        model_info["s1_visualization_error"] = None
 
         # ----------------------------------------------------
         # Single-image VQA
@@ -624,10 +595,6 @@ def generate_vlm_answer(
         # Temporal / analytical tasks
         # ----------------------------------------------------
         else:
-            s1_name = (
-                "S1B_IW_GRDH_1SDV_20170612T165809_33UUP_26_57"
-            )
-
             vlm_res = qwen_vlm.explain_change(
                 before_image=images.get("before"),
                 after_image=images.get("after"),
@@ -635,8 +602,8 @@ def generate_vlm_answer(
                 change_map=images.get("change_map"),
                 question=request.query,
                 metadata={
-                    "s1_composite": s1_visualization_available,
-                    "s1_visualization_error": s1_visualization_error,
+                    "s1_composite": False,
+                    "s1_visualization_error": None,
                 },
             )
 
@@ -961,6 +928,32 @@ def _build_optical_sar_api_response(
 
     confidence = _extract_optical_sar_confidence(sar_res, metadata)
 
+    opt_url = images_dict.get("optical")
+    sar_url = images_dict.get("s1_composite") or images_dict.get("s1_vv")
+    vis_data = {
+        "optical_url": opt_url,
+        "sar_url": sar_url,
+        "composite_url": images_dict.get("s1_composite"),
+        "vv_url": images_dict.get("s1_vv"),
+        "vh_url": images_dict.get("s1_vh"),
+    }
+    sources_data = {
+        "optical": {
+            "item_id": pair_info.get("optical_item_id") or metadata.get("optical", {}).get("item_id"),
+            "acquisition_datetime": pair_info.get("optical_acquisition_datetime") or metadata.get("optical", {}).get("acquisition_datetime"),
+        },
+        "sar": {
+            "item_id": pair_info.get("sar_item_id") or metadata.get("sar", {}).get("item_id"),
+            "acquisition_datetime": pair_info.get("sar_acquisition_datetime") or metadata.get("sar", {}).get("acquisition_datetime"),
+            "polarizations": pair_info.get("polarizations") or metadata.get("sar", {}).get("polarizations"),
+        },
+    }
+    analysis_data = {
+        "answer": sar_res.get("answer"),
+        "confidence": confidence,
+        "evidence": evidence,
+    }
+
     return AnalysisResult(
         status="success",
         answer=sar_res.get("answer"),
@@ -973,6 +966,195 @@ def _build_optical_sar_api_response(
         visualization_url=primary_vis_url,
         bounds=bounds,
         images=images_dict,
+        modality="multimodal",
+        sensor="sentinel-1,sentinel-2",
+        sources=sources_data,
+        visualization=vis_data,
+        analysis=analysis_data,
+        model=sar_res.get("model"),
+    )
+
+
+def _build_sar_api_response(
+    plan: QueryPlan,
+    query: str,
+    sar_res: dict,
+) -> AnalysisResult:
+    """
+    Format standalone Sentinel-1 SAR execution output into the unified AnalysisResult schema.
+    """
+    images_dict = sar_res.get("images", {})
+    metadata = sar_res.get("metadata", {})
+    comp_url = sar_res.get("visualization_url") or images_dict.get("s1_composite") or images_dict.get("sar")
+    vis_data = {
+        "sar_url": comp_url,
+        "composite_url": comp_url,
+        "vv_url": images_dict.get("s1_vv"),
+        "vh_url": images_dict.get("s1_vh"),
+    }
+    sources_data = {
+        "sar": {
+            "scene_id": metadata.get("scene_id"),
+            "date": metadata.get("date"),
+            "polarizations": metadata.get("polarizations"),
+            "mode": metadata.get("mode"),
+        }
+    }
+    evidence = [{"source": "sentinel-1", "metadata": metadata}]
+    analysis_data = {
+        "answer": sar_res.get("answer"),
+        "confidence": sar_res.get("confidence"),
+        "evidence": evidence,
+    }
+    trace = [
+        "Natural-language query classified as sar_analysis",
+        "Retrieved Sentinel-1 SAR imagery (VV/VH polarizations)",
+        "Computed 2%-98% percentile normalization and polarimetric composite",
+        "Generated radar backscatter visualizations",
+        "Evaluated radar backscatter characteristics with Qwen Vision-Language Model",
+    ]
+    return AnalysisResult(
+        status="success",
+        answer=sar_res.get("answer"),
+        confidence=sar_res.get("confidence"),
+        plan=plan.model_dump(),
+        statistics=metadata,
+        layers=sar_res.get("layers", []),
+        evidence=evidence,
+        execution_trace=trace,
+        visualization_url=comp_url,
+        bounds=sar_res.get("bounds"),
+        images=images_dict,
+        modality="sar",
+        sensor="sentinel-1",
+        sources=sources_data,
+        visualization=vis_data,
+        analysis=analysis_data,
+        model=sar_res.get("model"),
+    )
+
+
+def _build_sar_temporal_api_response(
+    plan: QueryPlan,
+    query: str,
+    sar_res: dict,
+) -> AnalysisResult:
+    """
+    Format Sentinel-1 SAR temporal change output into the unified AnalysisResult schema.
+    """
+    images_dict = sar_res.get("images", {})
+    metadata = sar_res.get("metadata", {})
+    change_url = sar_res.get("visualization_url") or images_dict.get("change_map")
+    vis_data = {
+        "sar_url": images_dict.get("after"),
+        "change_map_url": change_url,
+        "before_url": images_dict.get("before"),
+        "after_url": images_dict.get("after"),
+    }
+    sources_data = {
+        "sar": {
+            "before_scene_id": metadata.get("before_scene_id"),
+            "after_scene_id": metadata.get("after_scene_id"),
+            "before_date": metadata.get("before_date"),
+            "after_date": metadata.get("after_date"),
+        }
+    }
+    evidence = [{"source": "sentinel-1_temporal", "metadata": metadata}]
+    analysis_data = {
+        "answer": sar_res.get("answer"),
+        "confidence": sar_res.get("confidence"),
+        "evidence": evidence,
+    }
+    trace = [
+        "Natural-language query classified as sar_temporal_change",
+        "Retrieved Sentinel-1 SAR Before and After imagery",
+        "Normalized backscatter and computed radar difference change map",
+        "Generated multi-temporal SAR visual layers",
+        "Evaluated radar backscatter temporal changes with Qwen Vision-Language Model",
+    ]
+    return AnalysisResult(
+        status="success",
+        answer=sar_res.get("answer"),
+        confidence=sar_res.get("confidence"),
+        plan=plan.model_dump(),
+        statistics=metadata,
+        layers=sar_res.get("layers", []),
+        evidence=evidence,
+        execution_trace=trace,
+        visualization_url=change_url,
+        bounds=sar_res.get("bounds"),
+        images=images_dict,
+        modality="sar",
+        sensor="sentinel-1",
+        sources=sources_data,
+        visualization=vis_data,
+        analysis=analysis_data,
+        model=sar_res.get("model"),
+    )
+
+
+def _build_multimodal_temporal_api_response(
+    plan: QueryPlan,
+    query: str,
+    mm_res: dict,
+) -> AnalysisResult:
+    """
+    Format Sentinel-2 + Sentinel-1 multimodal temporal change output into the unified AnalysisResult schema.
+    """
+    images_dict = mm_res.get("images", {})
+    metadata = mm_res.get("metadata", {})
+    primary_vis_url = mm_res.get("visualization_url") or images_dict.get("optical") or images_dict.get("after")
+    vis_data = {
+        "optical_url": images_dict.get("optical") or images_dict.get("after"),
+        "sar_url": images_dict.get("s1_composite") or images_dict.get("sar") or images_dict.get("sar_after"),
+        "change_map_url": images_dict.get("change_map"),
+        "before_url": images_dict.get("before"),
+        "after_url": images_dict.get("after"),
+        "sar_before_url": images_dict.get("sar_before"),
+        "sar_after_url": images_dict.get("sar_after"),
+    }
+    sources_data = {
+        "optical": {
+            "before": metadata.get("s2_before"),
+            "after": metadata.get("s2_after"),
+        },
+        "sar": {
+            "before": metadata.get("s1_before"),
+            "after": metadata.get("s1_after"),
+        },
+    }
+    evidence = [{"source": "optical_sar_multimodal_temporal", "metadata": metadata}]
+    analysis_data = {
+        "answer": mm_res.get("answer"),
+        "confidence": mm_res.get("confidence"),
+        "evidence": evidence,
+    }
+    trace = [
+        "Natural-language query classified as multimodal_temporal_change",
+        "Retrieved Sentinel-2 (Optical) and Sentinel-1 (SAR) multi-temporal imagery",
+        "Normalized spectral and radar bands, computed multi-sensor change visualizations",
+        "Synthesized Optical and SAR temporal changes with Qwen Vision-Language Model",
+    ]
+    modality = mm_res.get("modality", "multimodal")
+    sensor = mm_res.get("sensor", "sentinel-1,sentinel-2")
+    return AnalysisResult(
+        status="success",
+        answer=mm_res.get("answer"),
+        confidence=mm_res.get("confidence"),
+        plan=plan.model_dump(),
+        statistics=metadata,
+        layers=mm_res.get("layers", []),
+        evidence=evidence,
+        execution_trace=trace,
+        visualization_url=primary_vis_url,
+        bounds=mm_res.get("bounds"),
+        images=images_dict,
+        modality=modality,
+        sensor=sensor,
+        sources=sources_data,
+        visualization=vis_data,
+        analysis=analysis_data,
+        model=mm_res.get("model"),
     )
 
 
@@ -1077,6 +1259,10 @@ def process_query(
                 "task": plan.task,
                 "steps": [{"tool": "single_image_vqa", "status": "success"}],
             },
+            modality="optical",
+            sensor="sentinel-2",
+            sources={"optical": {"scene": scene}},
+            analysis={"answer": answer, "confidence": vqa_result.get("confidence")},
         )
 
     # --------------------------------------------------------
@@ -1185,6 +1371,73 @@ def process_query(
             opt_path=Path(resolved_opt_path) if resolved_opt_path else None,
         )
 
+    # --------------------------------------------------------
+    # SAR STANDALONE ANALYSIS ROUTE
+    # --------------------------------------------------------
+    if plan.task == "sar_analysis":
+        load_env_file(BACKEND_DIR / ".env")
+        aoi_cand = plan.aoi or getattr(request, "aoi", None)
+        context = {
+            "question": request.query,
+            "query": request.query,
+            "aoi": aoi_cand,
+            "time_start": plan.time_start or getattr(request, "time_start", None),
+            "time_end": plan.time_end or getattr(request, "time_end", None),
+            "sar_path": getattr(request, "sar_image_id", None),
+            "task": plan.task,
+        }
+        execution_results = execute_plan(tools, context=context)
+        sar_res = execution_results.get("sar_analysis", {})
+        if not sar_res.get("success"):
+            err_msg = sar_res.get("error") or "Sentinel-1 SAR analysis failed."
+            status_code = 404 if "unavailable" in err_msg.lower() or "not found" in err_msg.lower() else 400
+            raise HTTPException(status_code=status_code, detail=err_msg)
+        return _build_sar_api_response(plan=plan, query=request.query, sar_res=sar_res)
+
+    # --------------------------------------------------------
+    # SAR TEMPORAL CHANGE ROUTE
+    # --------------------------------------------------------
+    if plan.task == "sar_temporal_change":
+        load_env_file(BACKEND_DIR / ".env")
+        aoi_cand = plan.aoi or getattr(request, "aoi", None)
+        context = {
+            "question": request.query,
+            "query": request.query,
+            "aoi": aoi_cand,
+            "time_start": plan.time_start or getattr(request, "time_start", None),
+            "time_end": plan.time_end or getattr(request, "time_end", None),
+            "task": plan.task,
+        }
+        execution_results = execute_plan(tools, context=context)
+        sar_res = execution_results.get("sar_temporal_change", {})
+        if not sar_res.get("success"):
+            err_msg = sar_res.get("error") or "Sentinel-1 SAR temporal change detection failed."
+            status_code = 404 if "unavailable" in err_msg.lower() or "not found" in err_msg.lower() else 400
+            raise HTTPException(status_code=status_code, detail=err_msg)
+        return _build_sar_temporal_api_response(plan=plan, query=request.query, sar_res=sar_res)
+
+    # --------------------------------------------------------
+    # MULTIMODAL TEMPORAL CHANGE ROUTE
+    # --------------------------------------------------------
+    if plan.task == "multimodal_temporal_change":
+        load_env_file(BACKEND_DIR / ".env")
+        aoi_cand = plan.aoi or getattr(request, "aoi", None)
+        context = {
+            "question": request.query,
+            "query": request.query,
+            "aoi": aoi_cand,
+            "time_start": plan.time_start or getattr(request, "time_start", None),
+            "time_end": plan.time_end or getattr(request, "time_end", None),
+            "task": plan.task,
+        }
+        execution_results = execute_plan(tools, context=context)
+        mm_res = execution_results.get("multimodal_temporal_change", {})
+        if not mm_res.get("success"):
+            err_msg = mm_res.get("error") or "Multimodal temporal change detection failed."
+            status_code = 404 if "unavailable" in err_msg.lower() or "not found" in err_msg.lower() else 400
+            raise HTTPException(status_code=status_code, detail=err_msg)
+        return _build_multimodal_temporal_api_response(plan=plan, query=request.query, mm_res=mm_res)
+
     # ========================================================
     # Pass target, metric, task in context so executor tools know primary metric
     target_metric = (
@@ -1194,18 +1447,30 @@ def process_query(
             "NDVI")
     )
 
-    execution_results = execute_plan(
-        tools,
-        context={
-            "time_start": plan.time_start,
-            "time_end": plan.time_end,
-            "aoi": plan.aoi,
-            "metric": plan.metric or target_metric,
-            "target": plan.target,
-            "task": plan.task,
-            "temporal_mode": getattr(plan, "temporal_mode", "bi_temporal"),
-        },
-    )
+    try:
+        execution_results = execute_plan(
+            tools,
+            context={
+                "time_start": plan.time_start,
+                "time_end": plan.time_end,
+                "aoi": plan.aoi,
+                "metric": plan.metric or target_metric,
+                "target": plan.target,
+                "task": plan.task,
+                "temporal_mode": getattr(plan, "temporal_mode", "bi_temporal"),
+            },
+        )
+    except RuntimeError as r_err:
+        err_msg = str(r_err)
+        if "Sentinel-2 retrieval failed" in err_msg or "At least two images are required" in err_msg:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sentinel-2 optical imagery unavailable: {err_msg}",
+            )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Execution error: {err_msg}",
+        )
 
     # ========================================================
     # 4. Build statistics
@@ -2222,6 +2487,25 @@ def process_query(
 
     result_confidence = vlm_result.get("confidence") if vlm_result else None
 
+    opt_sources = {
+        "optical": {
+            "scenes": [sc.get("id") for sc in (statistics.get("scenes") or []) if isinstance(sc, dict)],
+            "time_start": plan.time_start,
+            "time_end": plan.time_end,
+            "metric": target_metric,
+        }
+    }
+    opt_vis = {
+        "optical_url": visualization_url,
+        "change_map_url": visualization_url if "change" in (plan.task or "") else None,
+        "classified_url": classified_visualization_url,
+    }
+    opt_analysis = {
+        "answer": final_answer,
+        "confidence": result_confidence,
+        "evidence": evidence,
+    }
+
     return AnalysisResult(
         status="success",
         answer=final_answer,
@@ -2245,5 +2529,10 @@ def process_query(
         evidence_package=evidence_package,
         model=model_metadata,
         execution_summary=execution_summary,
+        modality="optical",
+        sensor="sentinel-2",
+        sources=opt_sources,
+        visualization=opt_vis,
+        analysis=opt_analysis,
     )
 

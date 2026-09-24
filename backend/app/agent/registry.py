@@ -17,7 +17,14 @@ from app.tools.comparison import compare_images
 # Optical-SAR multimodal analysis tool
 from app.vlm.optical_sar import run_optical_sar_analysis
 
-# RS-VLM Multimodal reasoning tools
+# Standalone SAR tools & Multimodal Change
+from app.remote_sensing.analysis.sar_pipeline import (
+    run_sar_analysis,
+    run_sar_temporal_change,
+    run_multimodal_temporal_change,
+)
+
+# RS-VLM Multimodal reasoning tools (Direct Qwen)
 from app.vlm.vqa import run_vqa
 from app.vlm.caption import run_caption
 from app.vlm.qwen_vlm import get_qwen_vlm
@@ -46,7 +53,12 @@ TOOL_REGISTRY = {
     # Optical-SAR analysis
     "optical_sar_analysis": run_optical_sar_analysis,
 
-    # RS-VLM multimodal reasoning
+    # Standalone SAR tools & Multimodal change
+    "sar_analysis": run_sar_analysis,
+    "sar_temporal_change": run_sar_temporal_change,
+    "multimodal_temporal_change": run_multimodal_temporal_change,
+
+    # RS-VLM multimodal reasoning (Direct Qwen)
     "single_image_vqa": run_vqa,
     "captioning": run_caption,
     "rs_vlm": get_qwen_vlm,

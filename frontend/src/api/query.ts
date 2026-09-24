@@ -13,6 +13,8 @@ export interface QueryPlan {
   primary_indicators?: string[];
   supporting_indicators?: string[];
   aoi?: unknown;
+  modality?: string;
+  sensor?: string;
 }
 
 export interface QueryResponse {
@@ -31,6 +33,14 @@ export interface QueryResponse {
     before?: string;
     after?: string;
     change_map?: string;
+    optical?: string;
+    sar?: string;
+    s1_composite?: string;
+    s1_vv?: string;
+    s1_vh?: string;
+    sar_before?: string;
+    sar_after?: string;
+    [key: string]: string | undefined;
   };
   layer_package?: Record<string, any>;
   multi_index_evidence?: Record<string, any>;
@@ -43,6 +53,24 @@ export interface QueryResponse {
   calibration?: Record<string, any>;
   model?: Record<string, any>;
   execution_summary?: Record<string, any>;
+  modality?: string;
+  sensor?: string;
+  sources?: Record<string, any>;
+  visualization?: {
+    optical_url?: string | null;
+    sar_url?: string | null;
+    change_map_url?: string | null;
+    composite_url?: string | null;
+    vv_url?: string | null;
+    vh_url?: string | null;
+    [key: string]: any;
+  };
+  analysis?: {
+    answer?: string;
+    confidence?: number | null;
+    evidence?: unknown[];
+    [key: string]: any;
+  };
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
@@ -51,13 +79,15 @@ export async function submitQuery(
   query: string,
   aoi?: unknown,
   timeStart?: string,
-  timeEnd?: string
+  timeEnd?: string,
+  modality?: string
 ): Promise<QueryResponse> {
   const payload: {
     query: string;
     aoi?: unknown;
     time_start?: string;
     time_end?: string;
+    modality?: string;
   } = { query };
 
   if (aoi) {
@@ -68,6 +98,9 @@ export async function submitQuery(
   }
   if (timeEnd && timeEnd.trim()) {
     payload.time_end = timeEnd.trim();
+  }
+  if (modality && modality.trim()) {
+    payload.modality = modality.trim();
   }
 
   const controller = new AbortController();

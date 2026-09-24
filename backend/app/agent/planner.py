@@ -26,6 +26,21 @@ def create_execution_plan(query_plan: QueryPlan) -> List[str]:
             "optical_sar_analysis",
         ]
 
+    if task in {"sar_analysis", "sar"}:
+        return [
+            "sar_analysis",
+        ]
+
+    if task in {"sar_temporal_change", "sar_change"}:
+        return [
+            "sar_temporal_change",
+        ]
+
+    if task in {"multimodal_temporal_change", "optical_sar_temporal_change"}:
+        return [
+            "multimodal_temporal_change",
+        ]
+
     if task == "temporal_change":
         return [
             "search_imagery",

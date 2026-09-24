@@ -1,0 +1,10 @@
+{
+  "image_id": "img_d6d5748a_unlabeled_data.tif",
+  "filename": "unlabeled_data.tif",
+  "declared_modality": null,
+  "band_count": 1,
+  "descriptions": [],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

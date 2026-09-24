@@ -1,0 +1,15 @@
+{
+  "image_id": "sar_57804b77_optical2_as_sar.tif",
+  "filename": "optical2_as_sar.tif",
+  "declared_modality": "sar",
+  "band_count": 4,
+  "descriptions": [
+    "Red",
+    "Green",
+    "Blue",
+    "NIR"
+  ],
+  "crs": "EPSG:32643",
+  "width": 64,
+  "height": 64
+}

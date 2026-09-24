@@ -1,0 +1,13 @@
+{
+  "image_id": "sar_7269df37_sar1.tif",
+  "filename": "sar1.tif",
+  "declared_modality": "sar",
+  "band_count": 2,
+  "descriptions": [
+    "VV",
+    "VH"
+  ],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

@@ -1,0 +1,10 @@
+{
+  "image_id": "sar_a7ece330_sar_scene.tif",
+  "filename": "sar_scene.tif",
+  "declared_modality": "sar",
+  "band_count": 2,
+  "descriptions": [],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

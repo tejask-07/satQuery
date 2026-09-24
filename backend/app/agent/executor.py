@@ -2374,6 +2374,70 @@ def execute_plan(
                     result["metadata"]["optical_sar_pair"] = pair_metadata
 
         # =====================================================
+        # STANDALONE SAR ANALYSIS
+        # =====================================================
+
+        elif tool_name == "sar_analysis":
+            q_text = context.get("question") or context.get("query") or "Analyze radar backscatter patterns in this SAR image."
+            aoi = context.get("aoi")
+            t_start = context.get("time_start")
+            t_end = context.get("time_end")
+            vlm_inst = context.get("vlm")
+            vv_p = context.get("sar_path") or context.get("vv_path")
+            vh_p = context.get("sar_vh_path") or context.get("vh_path")
+
+            print(f"[SAR AGENT] Executing standalone SAR analysis for AOI={aoi}, t_start={t_start}, t_end={t_end}")
+            result = tool(
+                aoi=aoi,
+                time_start=t_start,
+                time_end=t_end,
+                question=q_text,
+                vlm=vlm_inst,
+                vv_path=vv_p,
+                vh_path=vh_p,
+            )
+
+        # =====================================================
+        # SAR TEMPORAL CHANGE DETECTION
+        # =====================================================
+
+        elif tool_name == "sar_temporal_change":
+            q_text = context.get("question") or context.get("query") or "Analyze Sentinel-1 SAR temporal backscatter changes."
+            aoi = context.get("aoi")
+            t_start = context.get("time_start")
+            t_end = context.get("time_end")
+            vlm_inst = context.get("vlm")
+
+            print(f"[SAR TEMPORAL AGENT] Executing SAR temporal change for AOI={aoi}, start={t_start}, end={t_end}")
+            result = tool(
+                aoi=aoi,
+                time_start=t_start,
+                time_end=t_end,
+                question=q_text,
+                vlm=vlm_inst,
+            )
+
+        # =====================================================
+        # MULTIMODAL TEMPORAL CHANGE DETECTION
+        # =====================================================
+
+        elif tool_name == "multimodal_temporal_change":
+            q_text = context.get("question") or context.get("query") or "Compare this area between observation dates using optical and SAR."
+            aoi = context.get("aoi")
+            t_start = context.get("time_start")
+            t_end = context.get("time_end")
+            vlm_inst = context.get("vlm")
+
+            print(f"[MULTIMODAL TEMPORAL AGENT] Executing multimodal temporal change for AOI={aoi}, start={t_start}, end={t_end}")
+            result = tool(
+                aoi=aoi,
+                time_start=t_start,
+                time_end=t_end,
+                question=q_text,
+                vlm=vlm_inst,
+            )
+
+        # =====================================================
         # RS-VLM REASONING: SINGLE IMAGE VQA
         # =====================================================
 

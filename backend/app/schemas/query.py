@@ -20,6 +20,9 @@ class QueryRequest(BaseModel):
     time_start: Optional[str] = None
     time_end: Optional[str] = None
 
+    # Optional modality override: "optical", "sar", "multimodal", "auto"
+    modality: Optional[str] = None
+
 
 
 class QueryPlan(BaseModel):
@@ -28,6 +31,10 @@ class QueryPlan(BaseModel):
 
     # High-level intent of the analysis
     intent: Optional[str] = None
+
+    # Modality and sensor resolution
+    modality: Optional[str] = None
+    sensor: Optional[Union[str, List[str]]] = None
 
     # Area of Interest selected by the user
     aoi: Optional[Union[dict, list]] = None

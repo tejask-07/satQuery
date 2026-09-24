@@ -26,4 +26,9 @@ class AnalysisResult(BaseModel):
     temporal_analysis: Optional[Dict[str, Any]] = None
     calibration: Optional[Dict[str, Any]] = None
     model: Optional[Dict[str, Any]] = None
-    execution_summary: Optional[Dict[str, Any]] = None
+    execution_summary: Optional[Dict[str, Any]] = None
+    modality: Optional[str] = None
+    sensor: Optional[Any] = None
+    sources: Optional[Dict[str, Any]] = None
+    visualization: Optional[Dict[str, Any]] = None
+    analysis: Optional[Dict[str, Any]] = None

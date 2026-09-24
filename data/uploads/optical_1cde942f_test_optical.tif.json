@@ -1,0 +1,10 @@
+{
+  "image_id": "optical_1cde942f_test_optical.tif",
+  "filename": "test_optical.tif",
+  "declared_modality": "optical",
+  "band_count": 3,
+  "descriptions": [],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

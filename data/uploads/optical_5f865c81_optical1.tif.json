@@ -1,0 +1,15 @@
+{
+  "image_id": "optical_5f865c81_optical1.tif",
+  "filename": "optical1.tif",
+  "declared_modality": "optical",
+  "band_count": 4,
+  "descriptions": [
+    "Red",
+    "Green",
+    "Blue",
+    "NIR"
+  ],
+  "crs": "EPSG:32643",
+  "width": 64,
+  "height": 64
+}

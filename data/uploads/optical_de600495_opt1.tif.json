@@ -1,0 +1,14 @@
+{
+  "image_id": "optical_de600495_opt1.tif",
+  "filename": "opt1.tif",
+  "declared_modality": "optical",
+  "band_count": 3,
+  "descriptions": [
+    "Red",
+    "Green",
+    "Blue"
+  ],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

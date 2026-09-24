@@ -1,0 +1,10 @@
+{
+  "image_id": "optical_da7d6383_optical_scene.tif",
+  "filename": "optical_scene.tif",
+  "declared_modality": "optical",
+  "band_count": 3,
+  "descriptions": [],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

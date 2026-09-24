@@ -1,0 +1,10 @@
+{
+  "image_id": "sar_16e7ce25_test_sar.tif",
+  "filename": "test_sar.tif",
+  "declared_modality": "sar",
+  "band_count": 2,
+  "descriptions": [],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

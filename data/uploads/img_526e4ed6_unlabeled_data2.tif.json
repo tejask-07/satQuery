@@ -1,0 +1,10 @@
+{
+  "image_id": "img_526e4ed6_unlabeled_data2.tif",
+  "filename": "unlabeled_data2.tif",
+  "declared_modality": null,
+  "band_count": 1,
+  "descriptions": [],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}

@@ -103,19 +103,73 @@ class DirectQwenVLM:
     def _prompt(cls, question: str, evidence: Any, task: str) -> str:
         question = (question or "").strip()
         evidence_text = cls._evidence_text(evidence)
-        if task == "single_image_caption":
+        if task in ("optical", "single_image_optical"):
+            instruction = (
+                "The following image is Sentinel-2 optical satellite imagery.\n"
+                "Analyze the image according to the user's request.\n"
+                f"User request: {question}\n"
+                "Describe only observations supported by the imagery.\n"
+                "If something cannot be determined confidently from the image, state the uncertainty."
+            )
+        elif task in ("sar", "sar_analysis"):
+            instruction = (
+                "The following image is Sentinel-1 SAR imagery.\n"
+                "This is radar imagery, not conventional RGB optical imagery.\n"
+                "Analyze radar-visible patterns relevant to the user's request.\n"
+                f"User request: {question}\n"
+                "Pay attention to backscatter patterns, water, structures, roughness, and other features visible in the SAR representation.\n"
+                "Do not interpret the image as a normal RGB photograph."
+            )
+        elif task in ("optical_sar", "multimodal"):
+            instruction = (
+                "Image 1 is Sentinel-2 optical satellite imagery of the target area.\n"
+                "Image 2 is Sentinel-1 SAR imagery of the same target area.\n"
+                "Analyze both images together.\n"
+                "Use the optical image for visible land-cover characteristics, vegetation, roads, buildings, water and other optical features.\n"
+                "Use the SAR image for radar/backscatter characteristics and features that may be difficult to observe optically.\n"
+                "Compare the information from both modalities.\n"
+                f"User request: {question}\n"
+                "Clearly distinguish observations, inferred changes, and uncertainty.\n"
+                "Do not assume that features visible in one modality are necessarily visible in the other."
+            )
+        elif task == "sar_temporal_change":
+            instruction = (
+                "The following images are Sentinel-1 SAR imagery of the target area at two observation periods.\n"
+                "Image 1 is Sentinel-1 SAR imagery before.\n"
+                "Image 2 is Sentinel-1 SAR imagery after.\n"
+                "Image 3 is the SAR backscatter change map.\n"
+                "This is radar imagery, not conventional RGB optical imagery.\n"
+                "Analyze radar-visible changes relevant to the user's request.\n"
+                f"User request: {question}\n"
+                "Pay attention to backscatter changes, water/flood extent, structures, roughness, and other radar features.\n"
+                "Describe only supported visible changes and state uncertainty where appropriate."
+            )
+        elif task == "multimodal_temporal_change":
+            instruction = (
+                "Image 1 is Sentinel-2 optical satellite imagery before.\n"
+                "Image 2 is Sentinel-2 optical satellite imagery after.\n"
+                "Image 3 is Sentinel-1 SAR imagery before.\n"
+                "Image 4 is Sentinel-1 SAR imagery after.\n"
+                "Analyze both optical and SAR temporal changes together.\n"
+                "Use the optical imagery for visible land-cover characteristics, vegetation, roads, buildings, and water.\n"
+                "Use the SAR imagery for radar backscatter characteristics, surface roughness, and water/dielectric variations.\n"
+                "Compare and synthesize the information from both modalities.\n"
+                f"User request: {question}\n"
+                "Clearly distinguish observations, inferred changes, and uncertainty.\n"
+                "Do not claim numerical percentages unless explicitly provided in the evidence."
+            )
+        elif task == "single_image_caption":
             instruction = (
                 "Write one concise remote-sensing scene description covering dominant supported land cover and major visible features."
             )
         elif task == "temporal_change":
             instruction = (
-                "Compare the supplied before, after, and change-map images and describe "
-                "only supported visible changes."
-            )
-        elif task == "optical_sar":
-            instruction = (
-                "Analyze optical reflectance and SAR backscatter separately, then state "
-                "only supported complementary observations."
+                "Image 1 is Sentinel-2 optical satellite imagery before.\n"
+                "Image 2 is Sentinel-2 optical satellite imagery after.\n"
+                "Image 3 is the remote-sensing change map.\n"
+                "Compare the before, after, and change-map images and describe only supported visible changes.\n"
+                f"User request: {question}\n"
+                "Clearly distinguish observations from inferred changes."
             )
         elif task == "single_image_vqa" and cls._is_object_question(question):
             instruction = (
@@ -146,7 +200,7 @@ class DirectQwenVLM:
                 "must be stated. Omit unsupported classes."
             )
         else:
-            instruction = "Answer the exact user's question directly."
+            instruction = f"The following image is satellite or remote-sensing imagery. Answer the user's question directly: {question}."
         return (
             f"{DIRECT_QWEN_SYSTEM_PROMPT}\n\nTASK: {instruction}\n"
             f"REMOTE-SENSING EVIDENCE: {evidence_text}\n"
@@ -199,11 +253,18 @@ class DirectQwenVLM:
     ) -> list[tuple[str, Any]]:
         items: list[tuple[str, Any]] = []
         if image is not None:
-            items.append(("satellite image", image))
+            items.append(("Image 1: Sentinel-2 optical imagery", image))
         labels = {
-            "before": "Sentinel-2 before image",
-            "after": "Sentinel-2 after image",
-            "change_map": "remote-sensing change map",
+            "optical": "Image 1: Sentinel-2 optical satellite imagery",
+            "sar": "Image 2: Sentinel-1 SAR imagery",
+            "optical_before": "Image 1: Sentinel-2 optical imagery before",
+            "optical_after": "Image 2: Sentinel-2 optical imagery after",
+            "sar_before": "Image 3: Sentinel-1 SAR imagery before",
+            "sar_after": "Image 4: Sentinel-1 SAR imagery after",
+            "before": "Image 1: Sentinel-2 before image",
+            "after": "Image 2: Sentinel-2 after image",
+            "change_map": "Image 3: remote-sensing change map",
+            "sar_change_map": "Image 3: SAR backscatter change map",
             "s1_vv": "Sentinel-1 VV SAR image",
             "s1_vh": "Sentinel-1 VH SAR image",
             "s1_composite": "Sentinel-1 VV/VH SAR composite",
@@ -406,6 +467,97 @@ class DirectQwenVLM:
             evidence,
             metadata,
         )
+
+    def explain_sar(
+        self,
+        sar_image: Optional[Any] = None,
+        question: Optional[str] = None,
+        evidence: Optional[Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        sar_images: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        images = dict(sar_images or {})
+        if sar_image is not None and "sar" not in images and "s1_composite" not in images:
+            images["sar"] = sar_image
+        return self._result(
+            self._generate(
+                None,
+                question or "Analyze the Sentinel-1 SAR imagery.",
+                evidence,
+                images,
+                "sar",
+            ),
+            "sar",
+            evidence,
+            metadata,
+        )
+
+    def explain_sar_change(
+        self,
+        before_image: Optional[Any] = None,
+        after_image: Optional[Any] = None,
+        change_map: Optional[Any] = None,
+        question: Optional[str] = None,
+        evidence: Optional[Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        images = {
+            key: value
+            for key, value in {
+                "sar_before": before_image,
+                "sar_after": after_image,
+                "sar_change_map": change_map,
+            }.items()
+            if value is not None
+        }
+        return self._result(
+            self._generate(
+                None,
+                question or "Analyze the Sentinel-1 SAR temporal changes.",
+                evidence,
+                images,
+                "sar_temporal_change",
+            ),
+            "sar_temporal_change",
+            evidence,
+            metadata,
+        )
+
+    def explain_multimodal_change(
+        self,
+        optical_before: Optional[Any] = None,
+        optical_after: Optional[Any] = None,
+        sar_before: Optional[Any] = None,
+        sar_after: Optional[Any] = None,
+        change_map: Optional[Any] = None,
+        question: Optional[str] = None,
+        evidence: Optional[Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        images = {
+            key: value
+            for key, value in {
+                "optical_before": optical_before,
+                "optical_after": optical_after,
+                "sar_before": sar_before,
+                "sar_after": sar_after,
+                "change_map": change_map,
+            }.items()
+            if value is not None
+        }
+        return self._result(
+            self._generate(
+                None,
+                question or "Analyze the multimodal Optical and SAR temporal changes.",
+                evidence,
+                images,
+                "multimodal_temporal_change",
+            ),
+            "multimodal_temporal_change",
+            evidence,
+            metadata,
+        )
+
 
 
 _direct_qwen_instance: Optional[DirectQwenVLM] = None

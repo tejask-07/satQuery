@@ -1,0 +1,12 @@
+{
+  "image_id": "sar_de890f4f_vv_only_sar.tif",
+  "filename": "vv_only_sar.tif",
+  "declared_modality": "sar",
+  "band_count": 1,
+  "descriptions": [
+    "VV"
+  ],
+  "crs": "EPSG:32633",
+  "width": 64,
+  "height": 64
+}
